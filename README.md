@@ -1,4 +1,4 @@
-# Moirai
+# Moira
 MLIP ingestion and prediction workflows extracted from Oasis.
 
 ## Environment
@@ -26,9 +26,9 @@ PYTHONPATH=src python -m unittest
 Console script:
 
 ```bash
-moirai submit --config mlip.toml
-moirai make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.txt
-moirai run-one --config mlip.toml --line "mace example data/raw_data/example.json data/results/mlips/dev/example/mace.json"
+moira submit --config mlip.toml
+moira make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.txt
+moira run-one --config mlip.toml --line "mace example data/raw_data/example.json data/results/mlips/dev/example/mace.json"
 ```
 
 Module entrypoints:

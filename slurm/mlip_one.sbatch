@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="moirai"
+#SBATCH --job-name="moira"
 #SBATCH --gpus=1
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpuA40x4
