@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from oasis.exp import generate_sweep_splits
-from oasis.sweep import SweepDataset, SweepSplit, SweepSplitCollection, SweepRunPayload
+from moira.exp import generate_sweep_splits
+from moira.sweep import SweepDataset, SweepSplit, SweepSplitCollection, SweepRunPayload
 
 
 def regression_dataset() -> tuple[np.ndarray, np.ndarray]:

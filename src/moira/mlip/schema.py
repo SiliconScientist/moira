@@ -1,4 +1,4 @@
-# src/oasis/mlip/schema.py
+# src/moira/mlip/schema.py
 
 from __future__ import annotations
 

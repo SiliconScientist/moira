@@ -1,4 +1,4 @@
-# src/oasis/adapters/rootstock_adapter.py
+# src/moira/adapters/rootstock_adapter.py
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from typing import Any
 
 from catbench.adsorption import AdsorptionCalculation
 
-from oasis.mlip.registry import load_config
+from moira.mlip.registry import load_config
 
 
 def _resolve_checkpoint(checkpoint: str | None, config_path: Path) -> str | None:

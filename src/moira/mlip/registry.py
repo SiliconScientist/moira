@@ -1,4 +1,4 @@
-# src/oasis/mlip/registry.py
+# src/moira/mlip/registry.py
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def get_model_specs(config_path: str | Path) -> dict[str, ModelSpec]:
         specs[name] = ModelSpec(
             name=name,
             python=get_rootstock_python(config_path),
-            adapter_module="oasis.adapters.rootstock_adapter",
+            adapter_module="moira.adapters.rootstock_adapter",
         )
     return specs
 

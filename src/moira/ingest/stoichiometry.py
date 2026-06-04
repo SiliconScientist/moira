@@ -2,7 +2,7 @@ import re
 import sympy as sp
 from collections import Counter
 
-from oasis.config import Config
+from moira.config import Config
 
 
 def parse_formula(formula: str) -> dict[str, int]:

@@ -3,7 +3,7 @@ import argparse
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="oasis mlip",
+        prog="moira mlip",
         description="Run MLIP processing pipelines",
     )
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
@@ -28,7 +28,7 @@ def main(argv=None):
     make_tasks_p.add_argument("datasets", nargs="*")
     args = parser.parse_args(argv)
     if args.subcommand == "submit":
-        from oasis.mlip.submit import submit_jobs
+        from moira.mlip.submit import submit_jobs
 
         submit_jobs(
             config_path=args.config,
@@ -36,7 +36,7 @@ def main(argv=None):
             datasets=args.datasets,
         )
     elif args.subcommand == "run-one":
-        from oasis.mlip.runner import run_one_task
+        from moira.mlip.runner import run_one_task
 
         run_one_task(
             line=args.line,
@@ -44,7 +44,7 @@ def main(argv=None):
         )
 
     elif args.subcommand == "make-tasks":
-        from oasis.mlip.tasks import make_tasks
+        from moira.mlip.tasks import make_tasks
 
         make_tasks(
             config_path=args.config,

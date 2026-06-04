@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from oasis.mlip.artifacts import (
+from moira.mlip.artifacts import (
     find_result_files,
     load_result_json,
     load_wide_predictions,
@@ -17,7 +17,7 @@ from oasis.mlip.artifacts import (
     model_name_from_result_path,
     result_file_name,
 )
-from oasis.mlip.result_parsing import (
+from moira.mlip.result_parsing import (
     detect_anomalies_from_result_dict,
     extract_adsorbate,
 )
@@ -143,32 +143,32 @@ class MlipArtifactTests(unittest.TestCase):
 class DependencyBoundaryTests(unittest.TestCase):
     def test_importing_artifacts_does_not_import_runtime_modules(self) -> None:
         for module_name in (
-            "oasis.mlip.artifacts",
-            "oasis.mlip.runner",
-            "oasis.mlip.tasks",
-            "oasis.adapters.rootstock_adapter",
+            "moira.mlip.artifacts",
+            "moira.mlip.runner",
+            "moira.mlip.tasks",
+            "moira.adapters.rootstock_adapter",
         ):
             sys.modules.pop(module_name, None)
         before_import = set(sys.modules)
 
-        importlib.import_module("oasis.mlip.artifacts")
+        importlib.import_module("moira.mlip.artifacts")
 
         imported = set(sys.modules) - before_import
-        self.assertNotIn("oasis.mlip.runner", imported)
-        self.assertNotIn("oasis.mlip.tasks", imported)
-        self.assertNotIn("oasis.adapters.rootstock_adapter", imported)
+        self.assertNotIn("moira.mlip.runner", imported)
+        self.assertNotIn("moira.mlip.tasks", imported)
+        self.assertNotIn("moira.adapters.rootstock_adapter", imported)
 
     def test_importing_cli_does_not_import_adapter_runtime_modules(self) -> None:
         for module_name in (
-            "oasis.mlip.cli",
-            "oasis.mlip.runner",
-            "oasis.adapters.rootstock_adapter",
+            "moira.mlip.cli",
+            "moira.mlip.runner",
+            "moira.adapters.rootstock_adapter",
         ):
             sys.modules.pop(module_name, None)
         before_import = set(sys.modules)
 
-        importlib.import_module("oasis.mlip.cli")
+        importlib.import_module("moira.mlip.cli")
 
         imported = set(sys.modules) - before_import
-        self.assertNotIn("oasis.mlip.runner", imported)
-        self.assertNotIn("oasis.adapters.rootstock_adapter", imported)
+        self.assertNotIn("moira.mlip.runner", imported)
+        self.assertNotIn("moira.adapters.rootstock_adapter", imported)

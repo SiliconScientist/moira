@@ -1,4 +1,4 @@
-# src/oasis/mlip/tasks.py
+# src/moira/mlip/tasks.py
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ import json
 from pathlib import Path
 from typing import Iterable, Any
 
-from oasis.mlip.registry import get_model_specs, load_config
+from moira.mlip.registry import get_model_specs, load_config
 
 
 def default_run_tag(cfg: dict) -> str:
