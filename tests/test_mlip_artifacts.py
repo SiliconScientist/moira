@@ -141,15 +141,6 @@ class MlipArtifactTests(unittest.TestCase):
 
 
 class DependencyBoundaryTests(unittest.TestCase):
-    def test_importing_io_does_not_import_analysis(self) -> None:
-        sys.modules.pop("oasis.io", None)
-        sys.modules.pop("oasis.analysis", None)
-        before_import = set(sys.modules)
-
-        importlib.import_module("oasis.io")
-
-        self.assertNotIn("oasis.analysis", set(sys.modules) - before_import)
-
     def test_importing_artifacts_does_not_import_runtime_modules(self) -> None:
         for module_name in (
             "oasis.mlip.artifacts",
@@ -167,70 +158,17 @@ class DependencyBoundaryTests(unittest.TestCase):
         self.assertNotIn("oasis.mlip.tasks", imported)
         self.assertNotIn("oasis.adapters.rootstock_adapter", imported)
 
-    def test_importing_analysis_does_not_import_workflow_modules(self) -> None:
+    def test_importing_cli_does_not_import_adapter_runtime_modules(self) -> None:
         for module_name in (
-            "oasis.analysis",
-            "oasis.analysis_workflows",
-            "oasis.plot",
-            "catbench.adsorption",
-        ):
-            sys.modules.pop(module_name, None)
-        before_import = set(sys.modules)
-
-        importlib.import_module("oasis.analysis")
-
-        imported = set(sys.modules) - before_import
-        self.assertNotIn("oasis.analysis_workflows", imported)
-        self.assertNotIn("oasis.plot", imported)
-        self.assertNotIn("catbench.adsorption", imported)
-
-    def test_importing_experiment_data_does_not_import_probe_module(self) -> None:
-        for module_name in (
-            "oasis.experiment_data",
-            "oasis.probe",
-        ):
-            sys.modules.pop(module_name, None)
-        before_import = set(sys.modules)
-
-        importlib.import_module("oasis.experiment_data")
-
-        imported = set(sys.modules) - before_import
-        self.assertNotIn("oasis.probe", imported)
-
-    def test_experiment_side_modules_do_not_import_mlip_runtime(self) -> None:
-        target_modules = (
-            "oasis.exp",
-            "oasis.experiment_runner",
-            "oasis.experiment_data",
-            "oasis.learning_curve.registry",
-            "oasis.learning_curve.results_io",
-            "oasis.learning_curve.runners",
-        )
-        runtime_modules = (
             "oasis.mlip.cli",
             "oasis.mlip.runner",
-            "oasis.mlip.submit",
-            "oasis.mlip.tasks",
             "oasis.adapters.rootstock_adapter",
-        )
-        original_modules = {
-            module_name: sys.modules.get(module_name)
-            for module_name in (*target_modules, *runtime_modules)
-        }
-        try:
-            for module_name in (*target_modules, *runtime_modules):
-                sys.modules.pop(module_name, None)
-            before_import = set(sys.modules)
+        ):
+            sys.modules.pop(module_name, None)
+        before_import = set(sys.modules)
 
-            for module_name in target_modules:
-                importlib.import_module(module_name)
+        importlib.import_module("oasis.mlip.cli")
 
-            imported = set(sys.modules) - before_import
-            for module_name in runtime_modules:
-                self.assertNotIn(module_name, imported)
-        finally:
-            for module_name in (*target_modules, *runtime_modules):
-                sys.modules.pop(module_name, None)
-            for module_name, module in original_modules.items():
-                if module is not None:
-                    sys.modules[module_name] = module
+        imported = set(sys.modules) - before_import
+        self.assertNotIn("oasis.mlip.runner", imported)
+        self.assertNotIn("oasis.adapters.rootstock_adapter", imported)

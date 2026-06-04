@@ -1075,7 +1075,7 @@ wheels = [
 ]
 
 [[package]]
-name = "oasis"
+name = "oasis-mlip"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
