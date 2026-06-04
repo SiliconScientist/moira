@@ -1075,7 +1075,7 @@ wheels = [
 ]
 
 [[package]]
-name = "Moirai"
+name = "Moira"
 version = "0.0.1"
 source = { editable = "." }
 dependencies = [
