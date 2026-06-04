@@ -1,5 +1,5 @@
-# oasis
-Experiment workflows for refining ML interatomic potentials with sparse DFT data.
+# oasis-mlip
+MLIP ingestion and prediction workflows extracted from Oasis.
 
 ## Environment
 
@@ -23,21 +23,15 @@ PYTHONPATH=src python -m unittest
 
 ## Entrypoints
 
-Oasis owns experiment workflows. MLIP ingestion/prediction code remains here
-temporarily while it is being extracted into a separate repo.
+Console script:
 
-Experiment execution is config-driven:
-
-```python
-from oasis.experiment_runner import run_experiment_from_config
-
-run_experiment_from_config(["mlip.toml", "experiment.toml"])
+```bash
+oasis-mlip submit --config mlip.toml
+oasis-mlip make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.txt
+oasis-mlip run-one --config mlip.toml --line "mace example data/raw_data/example.json data/results/mlips/dev/example/mace.json"
 ```
 
-If you already have a parsed config object, call `run_experiment(cfg)` instead.
-
-MLIP commands remain available through the internal module entrypoint during the
-split:
+Module entrypoint:
 
 ```bash
 python -m oasis.mlip submit --config mlip.toml
@@ -45,179 +39,22 @@ python -m oasis.mlip make-tasks --config mlip.toml --run-tag dev --out slurm_out
 python -m oasis.mlip run-one --config mlip.toml --line "mace example data/raw_data/example.json data/results/mlips/dev/example/mace.json"
 ```
 
-`python -m oasis` is not an experiment runner. It only forwards `mlip ...` and
-otherwise exits with guidance to use the MLIP module entrypoint.
+`python -m oasis` also forwards directly to the MLIP CLI in this extracted repo.
 
-## Extraction Prep
+## Scope
 
-The MLIP-facing code is being kept extractable with minimal churn:
+This repo contains:
 
-- runtime entrypoint: `python -m oasis.mlip`
-- config contract: `mlip.toml`
-- package root: `oasis.mlip`
-- supporting runtime modules: `oasis.adapters`, `oasis.ingest`
-
-The extracted repo will get its own package metadata, CLI name, and branding.
-This repo remains experiment-first.
+- `oasis.mlip` runtime, artifact loading, and result parsing
+- `oasis.adapters` integration with Rootstock/CatBench
+- `oasis.ingest` dataset ingestion helpers
+- MLIP-facing config models in `oasis.mlip_config`
 
 Targeted graph/config test commands:
 
 ```bash
-PYTHONPATH=src python -m unittest tests.test_exp tests.test_graphs tests.test_config
-PYTHONPATH=src python -m unittest tests.test_graphs tests.test_exp
-PYTHONPATH=src python -m unittest tests.test_config
+PYTHONPATH=src python -m unittest tests.test_mlip_cli tests.test_mlip_artifacts
 ```
-
-## Learning-Curve Result Artifacts
-
-Learning-curve runs can persist one bundle file per dataset so you do not need
-to retrain every model just to regenerate plots.
-
-In the tag-first config style, the bundle path is derived from
-`dataset_profile.tag` plus `[datasets.<tag>]`, so `experiment.toml` only needs
-the naming inputs that differ from the default tag-based convention:
-
-```toml
-[dataset_profile]
-tag = "example_oh"
-
-[datasets.example_oh]
-# Omit this when the processed basename is exactly the tag.
-# processed_basename = "example_oh"
-
-[experiment.learning_curve]
-reuse_results = true
-```
-
-Workflow:
-
-- Build results incrementally. Run one method or one `n_train` range now, then
-  add more methods or more sweep sizes to the same bundle later.
-- Fill gaps later. With `reuse_results = true`, Oasis inspects cached rows per
-  method and runs only the missing `n_train` points needed for the current
-  request.
-- Reuse cached points. Plot regeneration and later sweep runs reuse compatible
-  cached rows instead of retraining them.
-- Mixed coverage is allowed. Different methods may have different feasible
-  `n_train` ranges in the same bundle, and plotting uses whatever rows exist
-  for each method.
-- Refresh conflicts explicitly. Use `force_refresh_methods` to rerun a whole
-  method, or `force_refresh_train_sizes` to rerun only selected `n_train`
-  points for a method.
-
-Example iterative workflow:
-
-```toml
-[dataset_profile]
-tag = "example_oh"
-
-[datasets.example_oh]
-# Omit this when the processed basename is exactly the tag.
-# processed_basename = "example_oh"
-
-[experiment.learning_curve]
-reuse_results = true
-
-# First pass: run one method or one range.
-# enabled methods example:
-# use_ridge = true
-# use_weighted_simplex = false
-
-# Later, enable another method or widen the sweep bounds.
-# Oasis keeps the old rows and fills only the gaps.
-
-force_refresh_methods = ["moe", "probe_gnn"]
-force_refresh_train_sizes = { ridge = [20, 30] }
-```
-
-Bundle identity is dataset/filter oriented, not exact-sweep oriented. Reuse
-requires the same dataset/filter identity and seed, but the bundle may contain:
-
-- different enabled-method subsets across runs
-- different `min_train` / `max_train` / `step` ranges across runs
-- different `n_repeats` across runs
-
-Those sweep settings are still preserved as per-point provenance in the saved
-artifact so you can audit how each row was produced.
-
-## Graph Artifact Contract
-
-Configured graph-backed learning-curve runs use
-`experiment.learning_curve.graph_dataset` in `experiment.toml`.
-
-Example:
-
-```toml
-[dataset_profile]
-tag = "example_oh"
-
-[datasets.example_oh]
-# Omit this when the processed basename is exactly the tag.
-# processed_basename = "example_oh"
-
-[experiment.learning_curve.graph_dataset]
-join_key = "reaction"
-```
-
-Behavior:
-
-- This section is optional. If you omit it, Oasis rebuilds graphs in memory for
-  the current run and does not write an aligned Parquet cache.
-- `graph_dataset.path` is derived from the active dataset profile.
-- If `graph_dataset.path` exists, Oasis reuses that saved aligned artifact.
-- If it does not exist, Oasis loads atoms from `mlip.dataset`, converts them to
-  graphs, aligns them to the filtered MLIP frame, and saves the artifact to
-  `graph_dataset.path`.
-
-The saved artifact is a Parquet file containing:
-
-- the aligned MLIP wide-frame columns, including `reference_ads_eng`
-- the join-key column, typically `reaction`
-- one row per sample after filtering/alignment
-- serialized graph payload columns:
-  `graph_sample_id`, `graph_node_features`, `graph_edge_index`,
-  `graph_node_positions`, `graph_edge_features`, and `graph_graph_features`
-
-Join-key expectations:
-
-- `graph_dataset.join_key` must name a column present in the MLIP wide frame.
-- The join key must be unique per row in the filtered frame.
-- Graph sample IDs must match the filtered frame exactly after alignment.
-- Extra graph sample IDs and missing graph sample IDs are treated as errors.
-
-Failure modes:
-
-- Missing join-key column: `wide_df is missing required join column`
-- Missing target column: `wide_df is missing required target column: reference_ads_eng`
-- Duplicate frame IDs: `wide_df contains duplicate <join_key> values`
-- Missing graphs for frame rows: `missing graphs for <join_key> values`
-- Extra graphs not present in the frame: `graph_view contains extra sample_ids`
-- No MLIP feature columns: `No MLIP prediction columns found`
-- Too few rows for an experiment run: `Not enough data to evaluate (need >5 samples)`
-- Parquet graph artifact support requires `polars`
-
-## Learned Sweep Contract
-
-Learned-model families run against precomputed sweep splits rather than owning
-their own splitting logic.
-
-- Train/test families receive `TrainTestSweepRunnerInput`.
-- Validation-aware learned families receive `TrainValTestSweepRunnerInput`.
-- `split.dataset_subsets()` returns aligned `SweepDataset` views for each split,
-  including features, targets, sample IDs, graphs, and auxiliary views.
-- `split.loader_inputs(...)` separates split membership from batching and
-  collation policy.
-- `split.loaders(...)` is the adapter seam for framework-specific loader
-  creation, including graph loaders and mixed-modal learned families.
-- Model selection may use only train/val data.
-- Outer test data must remain held out until one final evaluation after
-  selection and any optional refit.
-
-Batching and split-safety guarantees:
-
-- Split subsets are materialized first. Batching happens only after the
-  train/val/test membership is fixed.
-- A batch is always derived from exactly one split-local `SweepDataset` subset.
   No emitted batch may mix train, val, or test examples.
 - Train batching and eval batching are configured separately through
   `TrainEvalLoaderPolicy`.

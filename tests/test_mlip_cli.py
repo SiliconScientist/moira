@@ -11,28 +11,23 @@ from oasis.mlip.cli import main as mlip_main
 
 
 class MainDispatchTests(unittest.TestCase):
-    def test_main_forwards_mlip_args_to_dedicated_cli(self) -> None:
+    def test_python_dash_m_oasis_forwards_to_mlip_cli(self) -> None:
         with patch("oasis.mlip.cli.main") as mock_mlip_main:
-            main(["mlip", "run-one", "--line", "task", "--config", "mlip.toml"])
+            runpy.run_module("oasis", run_name="__main__")
 
-        mock_mlip_main.assert_called_once_with(
-            ["run-one", "--line", "task", "--config", "mlip.toml"]
-        )
+        mock_mlip_main.assert_called_once_with()
 
-    def test_importing_main_does_not_load_experiment_modules(self) -> None:
+    def test_importing_main_does_not_load_non_mlip_modules(self) -> None:
         sys.modules.pop("oasis.__main__", None)
         before_import = set(sys.modules)
 
         importlib.import_module("oasis.__main__")
 
         for name in (
-            "oasis.analysis",
-            "oasis.exp",
-            "oasis.experiment_runner",
-            "oasis.graphs",
-            "oasis.plot",
-            "oasis.probe",
-            "oasis.probe_features",
+            "oasis.adapters.rootstock_adapter",
+            "oasis.mlip.runner",
+            "oasis.mlip.submit",
+            "oasis.mlip.tasks",
         ):
             self.assertNotIn(name, set(sys.modules) - before_import)
 

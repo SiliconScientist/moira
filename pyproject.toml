@@ -3,10 +3,10 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "oasis"
+name = "oasis-mlip"
 version = "0.0.1"
 authors = [{ name = "Avery Hill", email = "ahill15@tulane.edu" }]
-description = "Experiment workflows for refining ML interatomic potentials with sparse ab initio data."
+description = "MLIP ingestion and prediction workflows extracted from Oasis."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
@@ -41,6 +41,9 @@ dev = [
 [project.urls]
 Homepage = "https://github.com/SiliconScientist/oasis"
 Issues = "https://github.com/SiliconScientist/oasis/issues"
+
+[project.scripts]
+oasis-mlip = "oasis.mlip.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
