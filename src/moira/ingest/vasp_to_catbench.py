@@ -6,8 +6,8 @@ from collections import defaultdict
 from pathlib import Path
 from catbench.adsorption.data import vasp as catbench_vasp
 
-from oasis.config import get_config
-from oasis.ingest.stoichiometry import solve_stoichiometry
+from moira.config import get_config
+from moira.ingest.stoichiometry import solve_stoichiometry
 
 
 def tag_to_ads(tag, tag_map):

@@ -6,7 +6,7 @@ from typing import Any
 
 import polars as pl
 
-from oasis.mlip.result_parsing import (
+from moira.mlip.result_parsing import (
     detect_anomalies_from_result_json,
     extract_adsorbate,
 )

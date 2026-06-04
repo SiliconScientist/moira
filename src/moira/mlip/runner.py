@@ -1,11 +1,11 @@
-# src/oasis/mlip/runner.py
+# src/moira/mlip/runner.py
 
 import os
 import subprocess
 import sys
 from pathlib import Path
 
-from oasis.mlip.registry import (
+from moira.mlip.registry import (
     get_catbench_source_path,
     get_rootstock_python,
 )
@@ -48,7 +48,7 @@ def run_one_task(line: str, config_path: str):
     cmd = [
         python_exe,
         "-m",
-        "oasis.adapters.rootstock_adapter",
+        "moira.adapters.rootstock_adapter",
         "--model",
         model,
         "--input",

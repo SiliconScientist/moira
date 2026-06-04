@@ -3,7 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
-from oasis.mlip.tasks import make_tasks
+from moira.mlip.tasks import make_tasks
 
 
 def submit_jobs(

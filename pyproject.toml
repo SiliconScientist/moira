@@ -3,7 +3,7 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "Moira"
+name = "moira"
 version = "0.0.1"
 authors = [{ name = "Avery Hill", email = "ahill15@tulane.edu" }]
 description = "MLIP ingestion and prediction workflows extracted from Oasis."
@@ -43,7 +43,7 @@ Homepage = "https://github.com/SiliconScientist/moira"
 Issues = "https://github.com/SiliconScientist/moira/issues"
 
 [project.scripts]
-moira = "oasis.mlip.cli:main"
+moira = "moira.mlip.cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

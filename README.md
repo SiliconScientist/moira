@@ -1,6 +1,14 @@
 # Moira
 MLIP ingestion and prediction workflows extracted from Oasis.
 
+## Naming
+
+- Project name: `Moira`
+- Repository slug: `moira`
+- Python package name: `moira`
+- CLI: `moira`
+- Python import namespace: `moira`
+
 ## Environment
 
 Install the project and test dependencies with:
@@ -34,18 +42,18 @@ moira run-one --config mlip.toml --line "mace example data/raw_data/example.json
 Module entrypoints:
 
 ```bash
-python -m oasis submit --config mlip.toml
-python -m oasis.mlip submit --config mlip.toml
+python -m moira submit --config mlip.toml
+python -m moira.mlip submit --config mlip.toml
 ```
 
 ## Scope
 
 This repo contains:
 
-- `oasis.mlip` runtime, artifact loading, and result parsing
-- `oasis.adapters` integration with Rootstock/CatBench
-- `oasis.ingest` dataset ingestion helpers
-- MLIP-facing config models in `oasis.mlip_config`
+- `moira.mlip` runtime, artifact loading, and result parsing
+- `moira.adapters` integration with Rootstock/CatBench
+- `moira.ingest` dataset ingestion helpers
+- MLIP-facing config models in `moira.mlip_config`
 
 ## Testing
 

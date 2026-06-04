@@ -10,7 +10,7 @@ from ase.constraints import FixAtoms, FixCartesian, dict2constraint
 from ase.geometry import find_mic
 from ase.io.jsonio import encode, object_hook
 
-from oasis.config import Config, get_config
+from moira.config import Config, get_config
 
 
 def load_mlip_dataset_subset(cfg: Config, limit: int = 10) -> dict[str, Any]:
