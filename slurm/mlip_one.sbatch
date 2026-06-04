@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="oasis-mlip"
+#SBATCH --job-name="moirai"
 #SBATCH --gpus=1
 #SBATCH --gres=gpu:1
 #SBATCH --partition=gpuA40x4
