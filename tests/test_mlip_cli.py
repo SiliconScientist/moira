@@ -5,12 +5,14 @@ import runpy
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from moira.__main__ import main
 from moira.mlip.cli import main as mlip_main
 from moira.mlip.registry import get_model_specs
+from moira.mlip.runner import run_one_task
 from moira.mlip.tasks import make_task_lines
 
 
@@ -168,3 +170,46 @@ class MlipRegistryTests(unittest.TestCase):
 
         self.assertEqual(specs["mace"].adapter_module, "moira.adapters.rootstock_adapter")
         self.assertEqual(specs["mace"].adapter_function, "run")
+
+
+class MlipRunnerTests(unittest.TestCase):
+    def test_run_one_task_dispatches_adapter_in_process(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            mock_runner = Mock()
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=mock_runner),
+            ) as mock_import_module:
+
+                run_one_task(
+                    "mace example data/raw_data/example.json data/results/mlips/dev/example/mace",
+                    str(config_path),
+                )
+
+        mock_import_module.assert_called_once_with("moira.adapters.rootstock_adapter")
+        mock_runner.assert_called_once_with(
+            model="mace",
+            input_path="data/raw_data/example.json",
+            output_path="data/results/mlips/dev/example/mace",
+            dataset_name="example",
+            config_path=str(config_path),
+        )
