@@ -8,10 +8,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, mock_open, patch
 
 from moira.__main__ import main
 from moira.mlip.cli import main as mlip_main
+from moira.mlip.preflight import validate_model_envs
 from moira.mlip.registry import get_model_specs
 from moira.mlip.runner import run_one_task
 from moira.mlip.tasks import make_task_lines
@@ -276,6 +277,69 @@ class MlipRegistryTests(unittest.TestCase):
             exec_env["MOIRA_ACTIVE_MODEL_PYTHON"],
             str(legacy_python.resolve()),
         )
+
+
+class MlipPreflightTests(unittest.TestCase):
+    def test_validate_model_envs_checks_legacy_imports(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with patch("moira.mlip.preflight.subprocess.run") as mock_run:
+                mock_run.return_value = SimpleNamespace(
+                    returncode=1,
+                    stderr="ModuleNotFoundError: No module named 'mace'",
+                    stdout="",
+                )
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "Model 'mace' failed preflight import",
+                ):
+                    validate_model_envs(config_path)
+
+                mock_run.assert_called_once_with(
+                    [str(legacy_python.resolve()), "-c", "import mace"],
+                    capture_output=True,
+                    text=True,
+                )
+
+    def test_submit_jobs_runs_preflight_before_sbatch(self) -> None:
+        with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
+            with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
+                with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
+                    with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                        from moira.mlip.submit import submit_jobs
+
+                        submit_jobs(
+                            config_path="mlip.toml",
+                            run_tag="run",
+                            datasets=[],
+                        )
+
+        mock_validate.assert_called_once()
+        mock_run.assert_called_once()
 
 
 class MlipRunnerTests(unittest.TestCase):

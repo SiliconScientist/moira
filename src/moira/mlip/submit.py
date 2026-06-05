@@ -3,6 +3,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from moira.mlip.preflight import validate_model_envs
 from moira.mlip.tasks import make_tasks
 
 
@@ -12,6 +13,9 @@ def submit_jobs(
     run_tag: str | None,
     datasets: list[str] | None,
 ) -> None:
+    resolved_config_path = Path(config_path).resolve()
+    validate_model_envs(resolved_config_path)
+
     # Decide run tag
     if run_tag is None:
         run_tag = "run"
@@ -21,7 +25,7 @@ def submit_jobs(
 
     # Generate task file
     make_tasks(
-        config_path=config_path,
+        config_path=resolved_config_path,
         run_tag=run_tag,
         out_path=taskfile,
         datasets=datasets,
@@ -38,7 +42,7 @@ def submit_jobs(
         f"--array=0-{n_tasks - 1}",
         "slurm/mlip_one.sbatch",
         str(taskfile),
-        str(config_path),
+        str(resolved_config_path),
     ]
 
     print("Submitting Slurm array:")
