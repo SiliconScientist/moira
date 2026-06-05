@@ -20,6 +20,35 @@ def infer_benchmark(input_path: str) -> str:
     return name.replace("_adsorption", "")
 
 
+def run(
+    *,
+    input_path: str,
+    output_path: str,
+    device: str = "cuda",
+    config_path: str = "config.toml",
+    model_path: str | None = None,
+    n_calcs: int = 3,
+) -> None:
+    del output_path, config_path
+
+    calculators = [
+        mace_mp(
+            model=model_path,
+            device=device,
+            default_dtype="float32",
+            head="omat_pbe",
+        )
+        for _ in range(n_calcs)
+    ]
+
+    adsorption_calc = AdsorptionCalculation(
+        calculators,
+        mlip_name=MLIP_NAME,
+        benchmark=infer_benchmark(input_path),
+    )
+    adsorption_calc.run()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run MACE adsorption predictions")
     parser.add_argument("--input", required=True, help="Input dataset JSON")
@@ -33,23 +62,14 @@ def main() -> None:
     parser.add_argument("--model-path", default=None)
     parser.add_argument("--n-calcs", type=int, default=3)
     args = parser.parse_args()
-
-    calculators = [
-        mace_mp(
-            model=args.model_path,
-            device=args.device,
-            default_dtype="float32",
-            head="omat_pbe",
-        )
-        for _ in range(args.n_calcs)
-    ]
-
-    adsorption_calc = AdsorptionCalculation(
-        calculators,
-        mlip_name=MLIP_NAME,
-        benchmark=infer_benchmark(args.input),
+    run(
+        input_path=args.input,
+        output_path=args.output,
+        device=args.device,
+        config_path=args.config,
+        model_path=args.model_path,
+        n_calcs=args.n_calcs,
     )
-    adsorption_calc.run()
 
 
 if __name__ == "__main__":

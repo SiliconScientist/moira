@@ -13,6 +13,34 @@ MLIP_NAME = "7net-omni"
 MODAL = "mpa"
 
 
+def run(
+    *,
+    input_path: str,
+    output_path: str,
+    dataset_name: str,
+    device: str = "cuda",
+    config_path: str = "config.toml",
+    model_path: str | None = None,
+    n_calcs: int = 3,
+) -> None:
+    del input_path, output_path, model_path
+
+    config = load_config(config_path)
+    optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
+
+    calculators = [
+        SevenNetCalculator(model=MLIP_NAME, modal=MODAL) for _ in range(n_calcs)
+    ]
+
+    adsorption_calc = AdsorptionCalculation(
+        calculators,
+        mlip_name=MLIP_NAME,
+        benchmark=dataset_name,
+        optimizer=optimizer,
+    )
+    adsorption_calc.run()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Run SevenNet adsorption predictions")
     parser.add_argument("--input", required=True, help="Input dataset JSON")
@@ -35,20 +63,15 @@ def main() -> None:
     )
     parser.add_argument("--n-calcs", type=int, default=3)
     args = parser.parse_args()
-    config = load_config(args.config)
-    optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
-
-    calculators = [
-        SevenNetCalculator(model=MLIP_NAME, modal=MODAL) for _ in range(args.n_calcs)
-    ]
-
-    adsorption_calc = AdsorptionCalculation(
-        calculators,
-        mlip_name=MLIP_NAME,
-        benchmark=args.dataset_name,
-        optimizer=optimizer,
+    run(
+        input_path=args.input,
+        output_path=args.output,
+        dataset_name=args.dataset_name,
+        device=args.device,
+        config_path=args.config,
+        model_path=args.model_path,
+        n_calcs=args.n_calcs,
     )
-    adsorption_calc.run()
 
 
 if __name__ == "__main__":
