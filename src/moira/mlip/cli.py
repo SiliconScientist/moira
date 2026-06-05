@@ -1,7 +1,26 @@
 import argparse
+import sys
 
 
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    else:
+        argv = list(argv)
+    if argv and argv[0] == "run-one":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Run a single MLIP task line",
+        )
+        parser.add_argument("--line", required=True)
+        parser.add_argument("--config", default="mlip.toml")
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.runner import run_one_task
+
+        run_one_task(args.line, args.config)
+        return
+
     parser = argparse.ArgumentParser(
         prog="moira",
         description="Run enabled MLIPs from config",

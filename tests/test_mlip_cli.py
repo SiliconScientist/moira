@@ -87,6 +87,27 @@ class MlipCliTests(unittest.TestCase):
 
         mock_mlip_main.assert_called_once_with()
 
+    def test_python_dash_m_moira_mlip_run_one_supports_line_parameter(self) -> None:
+        with patch("moira.mlip.runner.run_one_task") as mock_run_one_task:
+            with patch.object(
+                sys,
+                "argv",
+                [
+                    "python",
+                    "run-one",
+                    "--line",
+                    '{"model": "mace", "dataset_name": "example"}',
+                    "--config",
+                    "mlip.toml",
+                ],
+            ):
+                runpy.run_module("moira.mlip", run_name="__main__")
+
+        mock_run_one_task.assert_called_once_with(
+            '{"model": "mace", "dataset_name": "example"}',
+            "mlip.toml",
+        )
+
 
 class MlipTaskTests(unittest.TestCase):
     def test_make_task_lines_emit_json_records(self) -> None:
@@ -147,7 +168,9 @@ class MlipRegistryTests(unittest.TestCase):
 
             specs = get_model_specs(config_path)
 
-        self.assertEqual(specs["mace"].adapter_module, "moira.adapters.rootstock_adapter")
+        self.assertEqual(
+            specs["mace"].adapter_module, "moira.adapters.rootstock_adapter"
+        )
         self.assertEqual(specs["mace"].adapter_function, "run")
 
     def test_model_specs_can_select_legacy_adapters(self) -> None:
@@ -180,8 +203,12 @@ class MlipRegistryTests(unittest.TestCase):
 
             specs = get_model_specs(config_path)
 
-        self.assertEqual(specs["mace"].adapter_module, "moira.adapters.legacy.mace_adapter")
-        self.assertEqual(specs["uma"].adapter_module, "moira.adapters.legacy.uma_adapter")
+        self.assertEqual(
+            specs["mace"].adapter_module, "moira.adapters.legacy.mace_adapter"
+        )
+        self.assertEqual(
+            specs["uma"].adapter_module, "moira.adapters.legacy.uma_adapter"
+        )
         self.assertIsNone(specs["mace"].python)
 
 
@@ -212,7 +239,6 @@ class MlipRunnerTests(unittest.TestCase):
                 "moira.mlip.runner.importlib.import_module",
                 return_value=SimpleNamespace(run=mock_runner),
             ) as mock_import_module:
-
                 run_one_task(
                     (
                         '{"model": "mace", "dataset_name": "example", '
@@ -255,7 +281,6 @@ class MlipRunnerTests(unittest.TestCase):
                 "moira.mlip.runner.importlib.import_module",
                 return_value=SimpleNamespace(run=mock_runner),
             ) as mock_import_module:
-
                 run_one_task(
                     (
                         '{"model": "mace", "dataset_name": "example", '
