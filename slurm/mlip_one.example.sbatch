@@ -14,11 +14,33 @@
 
 set -euo pipefail
 
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TASKFILE="$1"
 CONFIG="${2:-config.toml}"
 
 LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKFILE")"
 echo "TASK: $LINE"
 
-# Use the dedicated MLIP entrypoint to parse config + dispatch
-python -m moira.mlip run-one --line "$LINE" --config "$CONFIG"
+MODEL="$(python - <<'PY'
+import json, sys
+line = sys.stdin.read().strip()
+if not line:
+    sys.exit(1)
+payload = json.loads(line)
+print(payload.get('model', ''))
+PY
+<<<"$LINE")"
+if [[ -z "$MODEL" ]]; then
+    echo "error: unable to determine model from task line" >&2
+    exit 1
+fi
+
+MODEL_PYTHON="$ROOT_DIR/envs/$MODEL/.venv/bin/python"
+if [[ -x "$MODEL_PYTHON" ]]; then
+    PYTHON_EXEC="$MODEL_PYTHON"
+else
+    PYTHON_EXEC="${PYTHON_BIN:-python}"
+fi
+
+cd "$ROOT_DIR"
+"$PYTHON_EXEC" -m moira.mlip run-one --line "$LINE" --config "$CONFIG"
