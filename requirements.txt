@@ -4,8 +4,5 @@ pydantic
 PyYAML
 sympy
 polars
-openpyxl
 pymatgen
-scikit-learn
-optuna
 -e .
