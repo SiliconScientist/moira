@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import time
-from pathlib import Path
 
 from catbench.adsorption import AdsorptionCalculation
 from mattersim.forcefield.potential import MatterSimCalculator, Potential
@@ -31,7 +28,6 @@ def main() -> None:
     args = parser.parse_args()
     config = load_config(args.config)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
-    t0 = time.time()
     calculators = []
     for _ in range(args.n_calcs):
         potential = Potential.from_checkpoint(
@@ -46,24 +42,7 @@ def main() -> None:
         benchmark=args.dataset_name,
         optimizer=optimizer,
     )
-    results = adsorption_calc.run()
-
-    out = {
-        "model": "mattersim",
-        "model_version": "v1-5m",
-        "checkpoint": Path(args.model_path).name,
-        "n_calculators": args.n_calcs,
-        "device": args.device,
-        "optimizer": optimizer,
-        "dataset_name": args.dataset_name,
-        "input_dataset": Path(args.input).name,
-        "wall_time_s": time.time() - t0,
-        "results": results,
-    }
-
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w") as f:
-        json.dump(out, f, indent=2)
+    adsorption_calc.run()
 
 
 if __name__ == "__main__":

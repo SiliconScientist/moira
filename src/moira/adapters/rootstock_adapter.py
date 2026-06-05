@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import time
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
@@ -24,15 +22,6 @@ def _resolve_checkpoint(checkpoint: str | None, config_path: Path) -> str | None
         and any(sep in checkpoint for sep in ("/", "\\"))
     ):
         return str((config_path.parent / checkpoint_path).resolve())
-    return checkpoint
-
-
-def _checkpoint_label(checkpoint: str | None) -> str | None:
-    if checkpoint is None:
-        return None
-
-    if any(sep in checkpoint for sep in ("/", "\\")):
-        return Path(checkpoint).name
     return checkpoint
 
 
@@ -77,11 +66,7 @@ def main() -> None:
     rootstock_cfg = config.get("mlip", {}).get("rootstock", {})
     root = rootstock_cfg.get("root", "/projects/bchg/rootstock")
     spec = _get_rootstock_spec(config, args.model)
-    configured_checkpoint = spec.get("checkpoint")
-    checkpoint = _resolve_checkpoint(configured_checkpoint, config_path)
-    metadata = dict(spec.get("metadata", {}))
-
-    t0 = time.time()
+    checkpoint = _resolve_checkpoint(spec.get("checkpoint"), config_path)
 
     # --- Build calculators ---
     with ExitStack() as stack:
@@ -104,27 +89,7 @@ def main() -> None:
             benchmark=args.dataset_name,
             optimizer=optimizer,
         )
-        results = adsorption_calc.run()
-
-    # --- Standardized output ---
-    out = {
-        "model": spec.get("output_model", args.model),
-        "model_version": spec.get("model_version", spec["mlip_name"]),
-        "rootstock_model": spec["model"],
-        "checkpoint": _checkpoint_label(configured_checkpoint),
-        "n_calculators": args.n_calcs,
-        "device": args.device,
-        "optimizer": optimizer,
-        "dataset_name": args.dataset_name,
-        "input_dataset": Path(args.input).name,
-        "wall_time_s": time.time() - t0,
-        "results": results,
-    }
-    out.update(metadata)
-
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w") as f:
-        json.dump(out, f, indent=2)
+        adsorption_calc.run()
 
 
 if __name__ == "__main__":

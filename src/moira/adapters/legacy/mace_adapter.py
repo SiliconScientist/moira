@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import json
-import time
 from pathlib import Path
 
 from catbench.adsorption import AdsorptionCalculation
@@ -32,8 +30,6 @@ def main() -> None:
     parser.add_argument("--n-calcs", type=int, default=3)
     args = parser.parse_args()
 
-    t0 = time.time()
-
     calculators = [
         mace_mp(
             model=args.model_path,
@@ -49,21 +45,7 @@ def main() -> None:
         mlip_name=MLIP_NAME,
         benchmark=infer_benchmark(args.input),
     )
-    results = adsorption_calc.run()
-
-    out = {
-        "model": "mace",
-        "model_version": "mace-mh-1",
-        "n_calculators": args.n_calcs,
-        "device": args.device,
-        "input_dataset": Path(args.input).name,
-        "wall_time_s": time.time() - t0,
-        "results": results,
-    }
-
-    Path(args.output).parent.mkdir(parents=True, exist_ok=True)
-    with open(args.output, "w") as f:
-        json.dump(out, f, indent=2)
+    adsorption_calc.run()
 
 
 if __name__ == "__main__":
