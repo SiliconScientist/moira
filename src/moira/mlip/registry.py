@@ -17,6 +17,7 @@ class ModelSpec:
     name: str
     python: str | None
     adapter_module: str
+    adapter_function: str
 
 
 def load_config(config_path: str | Path) -> dict[str, Any]:
@@ -58,6 +59,7 @@ def get_model_specs(config_path: str | Path) -> dict[str, ModelSpec]:
             name=name,
             python=get_rootstock_python(config_path),
             adapter_module="moira.adapters.rootstock_adapter",
+            adapter_function="run",
         )
     return specs
 
@@ -74,6 +76,13 @@ def get_model_adapter_module(model: str, config_path: str | Path) -> str:
     if model not in specs:
         raise KeyError(f"Unknown model '{model}'. Known: {', '.join(sorted(specs))}")
     return specs[model].adapter_module
+
+
+def get_model_adapter_function(model: str, config_path: str | Path) -> str:
+    specs = get_model_specs(config_path)
+    if model not in specs:
+        raise KeyError(f"Unknown model '{model}'. Known: {', '.join(sorted(specs))}")
+    return specs[model].adapter_function
 
 
 def get_catbench_source_path(config_path: str | Path) -> Path | None:

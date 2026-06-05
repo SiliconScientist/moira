@@ -10,6 +10,7 @@ from unittest.mock import patch
 
 from moira.__main__ import main
 from moira.mlip.cli import main as mlip_main
+from moira.mlip.registry import get_model_specs
 from moira.mlip.tasks import make_task_lines
 
 
@@ -142,3 +143,28 @@ class MlipTaskTests(unittest.TestCase):
                 f"{dataset_path.as_posix()} data/results/mlips/dev/example/mace"
             ],
         )
+
+
+class MlipRegistryTests(unittest.TestCase):
+    def test_model_specs_expose_importable_adapter_callable(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(specs["mace"].adapter_module, "moira.adapters.rootstock_adapter")
+        self.assertEqual(specs["mace"].adapter_function, "run")
