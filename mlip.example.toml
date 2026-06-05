@@ -3,10 +3,6 @@
 # This file owns only ingest/MLIP concerns. Dataset-profile, analysis, plot,
 # and learning-curve settings live in `experiment.toml`.
 
-dev_run = false
-train = true
-evaluate = true
-
 [ingest]
 source = "data/raw_vasp/systems"
 dataset_name = "example_dataset"
