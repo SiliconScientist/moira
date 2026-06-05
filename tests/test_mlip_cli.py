@@ -60,6 +60,16 @@ class MlipCliTests(unittest.TestCase):
         ):
             self.assertNotIn(name, set(sys.modules) - before_import)
 
+    def test_default_invocation_uses_config_defaults(self) -> None:
+        with patch("moira.mlip.submit.submit_jobs") as mock_submit_jobs:
+            mlip_main([])
+
+        mock_submit_jobs.assert_called_once_with(
+            config_path="mlip.toml",
+            run_tag=None,
+            datasets=[],
+        )
+
     def test_default_invocation_delegates_to_submit_jobs(self) -> None:
         with patch("moira.mlip.submit.submit_jobs") as mock_submit_jobs:
             mlip_main(["--config", "mlip.toml", "--run-tag", "tag", "dataset.json"])
