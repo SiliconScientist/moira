@@ -3,11 +3,14 @@ from __future__ import annotations
 import importlib
 import runpy
 import sys
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
 from moira.__main__ import main
 from moira.mlip.cli import main as mlip_main
+from moira.mlip.tasks import make_task_lines
 
 
 class MainDispatchTests(unittest.TestCase):
@@ -102,3 +105,40 @@ class MlipCliTests(unittest.TestCase):
                 runpy.run_module("moira.mlip", run_name="__main__")
 
         mock_mlip_main.assert_called_once_with()
+
+
+class MlipTaskTests(unittest.TestCase):
+    def test_make_task_lines_use_model_work_path_not_model_json(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text("{}", encoding="utf-8")
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            lines = make_task_lines(
+                config_path=config_path,
+                run_tag="dev",
+                datasets=[str(dataset_path)],
+            )
+
+        self.assertEqual(
+            lines,
+            [
+                "mace example "
+                f"{dataset_path.as_posix()} data/results/mlips/dev/example/mace"
+            ],
+        )

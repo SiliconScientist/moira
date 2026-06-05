@@ -14,15 +14,15 @@ from moira.mlip.registry import (
 def run_one_task(line: str, config_path: str):
     parts = line.split()
     if len(parts) == 4:
-        model, dataset_name, input_path, output_path = parts
+        model, dataset_name, input_path, task_work_path = parts
     elif len(parts) == 3:
-        model, input_path, output_path = parts
+        model, input_path, task_work_path = parts
         dataset_name = Path(input_path).stem
     else:
         raise ValueError(
             "Task line must have 3 or 4 fields: "
-            "<model> <input_path> <output_path> (legacy) or "
-            "<model> <dataset_name> <input_path> <output_path>"
+            "<model> <input_path> <task_work_path> (legacy) or "
+            "<model> <dataset_name> <input_path> <task_work_path>"
         )
 
     python_exe = get_rootstock_python(config_path) or sys.executable
@@ -54,7 +54,7 @@ def run_one_task(line: str, config_path: str):
         "--input",
         input_path,
         "--output",
-        output_path,
+        task_work_path,
         "--dataset-name",
         dataset_name,
         "--config",

@@ -47,7 +47,11 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Run Rootstock adsorption predictions")
     parser.add_argument("--model", required=True, help="Configured MLIP model key")
     parser.add_argument("--input", required=True, help="Input dataset JSON")
-    parser.add_argument("--output", required=True, help="Output result JSON")
+    parser.add_argument(
+        "--output",
+        required=True,
+        help="Compatibility task work path; CatBench manages result artifacts.",
+    )
     parser.add_argument(
         "--dataset-name",
         required=True,
