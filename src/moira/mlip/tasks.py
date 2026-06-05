@@ -50,9 +50,10 @@ def dataset_name_from_path(p: Path) -> str:
     return p.stem
 
 
-def output_path(run_tag: str, dataset_name: str, model: str) -> Path:
-    # data/results/mlips/<run_tag>/<dataset>/<model>.json
-    return Path("data/results/mlips") / run_tag / dataset_name / f"{model}.json"
+def task_work_path(run_tag: str, dataset_name: str, model: str) -> Path:
+    # Keep a fourth task field for compatibility, but point at the model work
+    # location rather than implying a single adapter-owned JSON artifact.
+    return Path("data/results/mlips") / run_tag / dataset_name / model
 
 
 def _slice_json_obj(obj: Any, n: int) -> Any:
@@ -116,9 +117,9 @@ def make_task_lines(
         if dev_run and not dname_task.endswith("_dev"):
             dname_task = f"{dname_task}_dev"
         for model in specs:
-            out = output_path(run_tag, dname_base, model)
+            work_path = task_work_path(run_tag, dname_base, model)
             lines.append(
-                f"{model} {dname_task} {dpath_for_run.as_posix()} {out.as_posix()}"
+                f"{model} {dname_task} {dpath_for_run.as_posix()} {work_path.as_posix()}"
             )
     return lines
 
