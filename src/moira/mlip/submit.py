@@ -16,7 +16,7 @@ def submit_jobs(
     if run_tag is None:
         run_tag = "run"
 
-    taskfile = Path("slurm_output") / f"mlip_tasks_{run_tag}.txt"
+    taskfile = Path("slurm_output") / f"mlip_tasks_{run_tag}.jsonl"
     taskfile.parent.mkdir(parents=True, exist_ok=True)
 
     # Generate task file

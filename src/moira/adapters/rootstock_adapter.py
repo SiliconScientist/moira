@@ -47,13 +47,12 @@ def run(
     *,
     model: str,
     input_path: str,
-    output_path: str,
     dataset_name: str,
     device: str = "cuda",
     config_path: str = "mlip.toml",
     n_calcs: int = 3,
 ) -> None:
-    del input_path, output_path
+    del input_path
 
     from rootstock import RootstockCalculator
 
@@ -108,7 +107,6 @@ def main() -> None:
     run(
         model=args.model,
         input_path=args.input,
-        output_path=args.output,
         dataset_name=args.dataset_name,
         device=args.device,
         config_path=args.config,

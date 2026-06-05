@@ -35,8 +35,8 @@ Console script:
 
 ```bash
 moira submit --config mlip.toml
-moira make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.txt
-moira run-one --config mlip.toml --line "mace example data/raw_data/example.json data/results/mlips/dev/example/mace"
+moira make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.jsonl
+moira run-one --config mlip.toml --line '{"model":"mace","dataset_name":"example","input_path":"data/raw_data/example.json"}'
 ```
 
 Module entrypoints:

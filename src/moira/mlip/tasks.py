@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Iterable, Any
+from typing import Any, Iterable
 
 from moira.mlip.registry import get_model_specs, load_config
 
@@ -48,12 +48,6 @@ def dataset_name_from_path(p: Path) -> str:
     if p.name.endswith("_adsorption.json"):
         return p.stem[: -len("_adsorption")]
     return p.stem
-
-
-def task_work_path(run_tag: str, dataset_name: str, model: str) -> Path:
-    # Keep a fourth task field for compatibility, but point at the model work
-    # location rather than implying a single adapter-owned JSON artifact.
-    return Path("data/results/mlips") / run_tag / dataset_name / model
 
 
 def _slice_json_obj(obj: Any, n: int) -> Any:
@@ -117,9 +111,14 @@ def make_task_lines(
         if dev_run and not dname_task.endswith("_dev"):
             dname_task = f"{dname_task}_dev"
         for model in specs:
-            work_path = task_work_path(run_tag, dname_base, model)
             lines.append(
-                f"{model} {dname_task} {dpath_for_run.as_posix()} {work_path.as_posix()}"
+                json.dumps(
+                    {
+                        "model": model,
+                        "dataset_name": dname_task,
+                        "input_path": dpath_for_run.as_posix(),
+                    }
+                )
             )
     return lines
 
