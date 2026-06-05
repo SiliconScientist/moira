@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import json
+import os
 import runpy
 import sys
 from pathlib import Path
@@ -276,6 +277,10 @@ class MlipRegistryTests(unittest.TestCase):
         self.assertEqual(
             exec_env["MOIRA_ACTIVE_MODEL_PYTHON"],
             str(legacy_python.resolve()),
+        )
+        self.assertIn(
+            str(Path(__file__).resolve().parents[1] / "src"),
+            exec_env["PYTHONPATH"].split(os.pathsep),
         )
 
     def test_run_one_task_reexecs_when_venvs_share_base_interpreter(self) -> None:

@@ -50,6 +50,10 @@ def _load_adapter_callable(model: str, config_path: str):
     return getattr(module, function_name)
 
 
+def _project_src_path() -> Path:
+    return Path(__file__).resolve().parents[2]
+
+
 def _maybe_reexec_with_model_python(model: str, line: str, config_path: str) -> str:
     resolved_config_path = str(Path(config_path).resolve())
     target_python = get_model_python(model, resolved_config_path)
@@ -69,6 +73,12 @@ def _maybe_reexec_with_model_python(model: str, line: str, config_path: str) -> 
 
     env = os.environ.copy()
     env["MOIRA_ACTIVE_MODEL_PYTHON"] = str(target_python_path)
+    project_src = str(_project_src_path())
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        env["PYTHONPATH"] = os.pathsep.join([project_src, existing_pythonpath])
+    else:
+        env["PYTHONPATH"] = project_src
     os.execve(
         str(target_python_path),
         [
