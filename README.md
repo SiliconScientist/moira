@@ -31,12 +31,17 @@ PYTHONPATH=src python -m unittest
 
 ## Entrypoints
 
-Console script:
+Single entrypoint:
 
 ```bash
 moira --config mlip.toml
 moira --config mlip.toml --run-tag dev data/raw_data/example_adsorption.json
 ```
+
+`moira` and `python -m moira` both run the config-driven MLIP workflow:
+- Enabled models come from `mlip.toml`
+- Optional dataset arguments override `mlip.dataset` or `mlip.datasets`
+- `--run-tag` controls the Slurm task/result grouping
 
 Module entrypoints:
 
@@ -44,6 +49,8 @@ Module entrypoints:
 python -m moira --config mlip.toml
 python -m moira.mlip --config mlip.toml
 ```
+
+Lower-level task creation and single-task execution are internal implementation details behind this workflow, not the public CLI surface.
 
 ## Scope
 

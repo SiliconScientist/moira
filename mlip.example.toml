@@ -2,6 +2,11 @@
 # Copy to `mlip.toml` and replace paths/model specs for your environment.
 # This file owns only ingest/MLIP concerns. Dataset-profile, analysis, plot,
 # and learning-curve settings live in `experiment.toml`.
+#
+# Typical usage:
+#   python -m moira --config mlip.toml
+# Optional dataset overrides:
+#   python -m moira --config mlip.toml data/raw_data/example_adsorption.json
 
 [ingest]
 source = "data/raw_vasp/systems"
@@ -20,6 +25,10 @@ H2 = { H = 2 }
 dev_n = 2
 dev_run = false
 optimizer = "FIRE"
+# Optional:
+# run_tag = "dev"
+# dataset = "data/raw_data/example_adsorption.json"
+# datasets = ["data/raw_data/example_adsorption.json"]
 
 [mlip.models]
 enabled = ["mace", "mattersim", "orb_v3", "sevennet", "uma"]
