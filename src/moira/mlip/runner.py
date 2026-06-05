@@ -56,13 +56,13 @@ def _maybe_reexec_with_model_python(model: str, line: str, config_path: str) -> 
     if target_python is None:
         return resolved_config_path
 
-    target_python_path = Path(target_python).resolve()
+    target_python_path = Path(target_python).absolute()
     if not target_python_path.exists():
         raise FileNotFoundError(
             f"Configured Python for model '{model}' does not exist: {target_python_path}"
         )
 
-    current_python = Path(sys.executable).resolve()
+    current_python = Path(sys.executable).absolute()
     current_marker = os.environ.get("MOIRA_ACTIVE_MODEL_PYTHON")
     if current_python == target_python_path or current_marker == str(target_python_path):
         return resolved_config_path

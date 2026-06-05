@@ -278,6 +278,56 @@ class MlipRegistryTests(unittest.TestCase):
             str(legacy_python.resolve()),
         )
 
+    def test_run_one_task_reexecs_when_venvs_share_base_interpreter(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            shared_base = tmp_path / "shared-python" / "python3.13"
+            shared_base.parent.mkdir(parents=True)
+            shared_base.write_text("", encoding="utf-8")
+            main_python = tmp_path / ".venv" / "bin" / "python"
+            main_python.parent.mkdir(parents=True)
+            main_python.symlink_to(shared_base)
+            legacy_python.unlink()
+            legacy_python.symlink_to(shared_base)
+
+            with (
+                patch(
+                    "moira.mlip.runner.os.execve",
+                    side_effect=SystemExit(0),
+                ) as mock_execve,
+                patch("moira.mlip.runner.sys.executable", str(main_python)),
+            ):
+                with self.assertRaises(SystemExit):
+                    run_one_task(
+                        '{"model": "mace", "dataset_name": "example"}',
+                        str(config_path),
+                    )
+
+                mock_execve.assert_called_once()
+
 
 class MlipPreflightTests(unittest.TestCase):
     def test_validate_model_envs_checks_legacy_imports(self) -> None:
