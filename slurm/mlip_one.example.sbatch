@@ -21,13 +21,21 @@ CONFIG="${2:-config.toml}"
 LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKFILE")"
 echo "TASK: $LINE"
 
-MODEL="$(python - <<'PY'
+MODEL="$("${PYTHON_BIN:-python3}" - <<'PY'
 import json, sys
 line = sys.stdin.read().strip()
 if not line:
     sys.exit(1)
-payload = json.loads(line)
-print(payload.get('model', ''))
+try:
+    payload = json.loads(line)
+except json.JSONDecodeError:
+    parts = line.split()
+    if len(parts) in {2, 3, 4}:
+        print(parts[0])
+        sys.exit(0)
+    sys.exit(1)
+if isinstance(payload, dict):
+    print(payload.get("model", ""))
 PY
 <<<"$LINE")"
 if [[ -z "$MODEL" ]]; then
