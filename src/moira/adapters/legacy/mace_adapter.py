@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import argparse
 from pathlib import Path
 
 from catbench.adsorption import AdsorptionCalculation
@@ -46,29 +45,3 @@ def run(
         benchmark=infer_benchmark(input_path),
     )
     adsorption_calc.run()
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run MACE adsorption predictions")
-    parser.add_argument("--input", required=True, help="Input dataset JSON")
-    parser.add_argument(
-        "--output",
-        required=True,
-        help="Compatibility task work path; CatBench manages result artifacts.",
-    )
-    parser.add_argument("--device", default="cuda")
-    parser.add_argument("--config", default="config.toml")
-    parser.add_argument("--model-path", default=None)
-    parser.add_argument("--n-calcs", type=int, default=3)
-    args = parser.parse_args()
-    run(
-        input_path=args.input,
-        device=args.device,
-        config_path=args.config,
-        model_path=args.model_path,
-        n_calcs=args.n_calcs,
-    )
-
-
-if __name__ == "__main__":
-    main()
