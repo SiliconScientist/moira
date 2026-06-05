@@ -34,16 +34,15 @@ PYTHONPATH=src python -m unittest
 Console script:
 
 ```bash
-moira submit --config mlip.toml
-moira make-tasks --config mlip.toml --run-tag dev --out slurm_output/tasks.jsonl
-moira run-one --config mlip.toml --line '{"model":"mace","dataset_name":"example","input_path":"data/raw_data/example.json"}'
+moira --config mlip.toml
+moira --config mlip.toml --run-tag dev data/raw_data/example_adsorption.json
 ```
 
 Module entrypoints:
 
 ```bash
-python -m moira submit --config mlip.toml
-python -m moira.mlip submit --config mlip.toml
+python -m moira --config mlip.toml
+python -m moira.mlip --config mlip.toml
 ```
 
 ## Scope
