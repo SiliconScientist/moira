@@ -21,9 +21,11 @@ CONFIG="${2:-config.toml}"
 LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKFILE")"
 echo "TASK: $LINE"
 
-MODEL="$("${PYTHON_BIN:-python3}" - <<'PY'
-import json, sys
-line = sys.stdin.read().strip()
+MODEL="$("${PYTHON_BIN:-python3}" -c '
+import json
+import sys
+
+line = sys.argv[1].strip()
 if not line:
     sys.exit(1)
 try:
@@ -36,8 +38,7 @@ except json.JSONDecodeError:
     sys.exit(1)
 if isinstance(payload, dict):
     print(payload.get("model", ""))
-PY
-<<<"$LINE")"
+' "$LINE")"
 if [[ -z "$MODEL" ]]; then
     echo "error: unable to determine model from task line" >&2
     exit 1
