@@ -5,3 +5,7 @@ __pycache__/
 models/
 results/
 data/
+
+# Configuration files
+config.toml
+mlip.toml
