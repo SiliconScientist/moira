@@ -17,6 +17,15 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TASKFILE="$1"
 CONFIG="${2:-config.toml}"
+SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$ROOT_DIR}"
+
+if [[ "$TASKFILE" != /* ]]; then
+    TASKFILE="$SUBMIT_DIR/$TASKFILE"
+fi
+
+if [[ "$CONFIG" != /* ]]; then
+    CONFIG="$SUBMIT_DIR/$CONFIG"
+fi
 
 LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKFILE")"
 echo "TASK: $LINE"
