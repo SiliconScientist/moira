@@ -2,6 +2,7 @@
 
 import importlib
 import json
+import os
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -10,6 +11,7 @@ from moira.mlip.registry import (
     get_catbench_source_path,
     get_model_adapter_function,
     get_model_adapter_module,
+    get_model_python,
 )
 
 
@@ -46,6 +48,42 @@ def _load_adapter_callable(model: str, config_path: str):
     function_name = get_model_adapter_function(model, config_path)
     module = importlib.import_module(module_name)
     return getattr(module, function_name)
+
+
+def _maybe_reexec_with_model_python(model: str, line: str, config_path: str) -> str:
+    resolved_config_path = str(Path(config_path).resolve())
+    target_python = get_model_python(model, resolved_config_path)
+    if target_python is None:
+        return resolved_config_path
+
+    target_python_path = Path(target_python).resolve()
+    if not target_python_path.exists():
+        raise FileNotFoundError(
+            f"Configured Python for model '{model}' does not exist: {target_python_path}"
+        )
+
+    current_python = Path(sys.executable).resolve()
+    current_marker = os.environ.get("MOIRA_ACTIVE_MODEL_PYTHON")
+    if current_python == target_python_path or current_marker == str(target_python_path):
+        return resolved_config_path
+
+    env = os.environ.copy()
+    env["MOIRA_ACTIVE_MODEL_PYTHON"] = str(target_python_path)
+    os.execve(
+        str(target_python_path),
+        [
+            str(target_python_path),
+            "-m",
+            "moira.mlip",
+            "run-one",
+            "--line",
+            line,
+            "--config",
+            resolved_config_path,
+        ],
+        env,
+    )
+    raise AssertionError("os.execve returned unexpectedly")
 
 
 def _parse_task_record(line: str) -> dict[str, str]:
@@ -89,12 +127,13 @@ def run_one_task(line: str, config_path: str):
     task = _parse_task_record(line)
     model = task["model"]
     dataset_name = task["dataset_name"]
+    resolved_config_path = _maybe_reexec_with_model_python(model, line, config_path)
 
     print(f"Running adapter: {model} ({dataset_name})")
-    with _catbench_source_on_syspath(config_path):
-        run_adapter = _load_adapter_callable(model, config_path)
+    with _catbench_source_on_syspath(resolved_config_path):
+        run_adapter = _load_adapter_callable(model, resolved_config_path)
         run_adapter(
             model=model,
             dataset_name=dataset_name,
-            config_path=str(config_path),
+            config_path=resolved_config_path,
         )

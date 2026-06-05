@@ -175,7 +175,11 @@ class MlipRegistryTests(unittest.TestCase):
 
     def test_model_specs_can_select_legacy_adapters(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "mlip.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -209,7 +213,69 @@ class MlipRegistryTests(unittest.TestCase):
         self.assertEqual(
             specs["uma"].adapter_module, "moira.adapters.legacy.uma_adapter"
         )
-        self.assertIsNone(specs["mace"].python)
+        self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
+
+    def test_run_one_task_reexecs_into_legacy_model_python(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with (
+                patch(
+                    "moira.mlip.runner.os.execve",
+                    side_effect=SystemExit(0),
+                ) as mock_execve,
+                patch("moira.mlip.runner.sys.executable", str(tmp_path / "python")),
+            ):
+                with self.assertRaises(SystemExit):
+                    run_one_task(
+                        '{"model": "mace", "dataset_name": "example"}',
+                        str(config_path),
+                    )
+
+                mock_execve.assert_called_once()
+                exec_path, exec_argv, exec_env = mock_execve.call_args.args
+
+        self.assertEqual(exec_path, str(legacy_python.resolve()))
+        self.assertEqual(
+            exec_argv,
+            [
+                str(legacy_python.resolve()),
+                "-m",
+                "moira.mlip",
+                "run-one",
+                "--line",
+                '{"model": "mace", "dataset_name": "example"}',
+                "--config",
+                str(config_path.resolve()),
+            ],
+        )
+        self.assertEqual(
+            exec_env["MOIRA_ACTIVE_MODEL_PYTHON"],
+            str(legacy_python.resolve()),
+        )
 
 
 class MlipRunnerTests(unittest.TestCase):
@@ -251,7 +317,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
-            config_path=str(config_path),
+            config_path=str(config_path.resolve()),
         )
 
     def test_run_one_task_dispatches_legacy_adapter_when_selected(self) -> None:
@@ -293,7 +359,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
-            config_path=str(config_path),
+            config_path=str(config_path.resolve()),
         )
 
     def test_run_one_task_accepts_legacy_task_lines(self) -> None:
@@ -330,5 +396,5 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
-            config_path=str(config_path),
+            config_path=str(config_path.resolve()),
         )

@@ -67,6 +67,14 @@ def get_rootstock_python(config_path: str | Path) -> str | None:
     return str(python) if python is not None else None
 
 
+def get_legacy_model_python(model: str, config_path: str | Path) -> str | None:
+    config_path = Path(config_path).resolve()
+    env_python = config_path.parent / "envs" / model / ".venv" / "bin" / "python"
+    if env_python.exists():
+        return str(env_python)
+    return None
+
+
 def get_model_specs(config_path: str | Path) -> dict[str, ModelSpec]:
     cfg = load_config(config_path)
     enabled = get_enabled_models(cfg)
@@ -86,7 +94,11 @@ def get_model_specs(config_path: str | Path) -> dict[str, ModelSpec]:
             adapter_module = "moira.adapters.rootstock_adapter"
         specs[name] = ModelSpec(
             name=name,
-            python=get_rootstock_python(config_path) if backend == "rootstock" else None,
+            python=(
+                get_rootstock_python(config_path)
+                if backend == "rootstock"
+                else get_legacy_model_python(name, config_path)
+            ),
             adapter_module=adapter_module,
             adapter_function="run",
         )
