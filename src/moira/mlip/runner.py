@@ -1,6 +1,7 @@
 # src/moira/mlip/runner.py
 
 import importlib
+import json
 import sys
 from contextlib import contextmanager
 from pathlib import Path
@@ -47,19 +48,46 @@ def _load_adapter_callable(model: str, config_path: str):
     return getattr(module, function_name)
 
 
-def run_one_task(line: str, config_path: str):
-    parts = line.split()
-    if len(parts) == 4:
-        model, dataset_name, input_path, task_work_path = parts
-    elif len(parts) == 3:
-        model, input_path, task_work_path = parts
-        dataset_name = Path(input_path).stem
-    else:
-        raise ValueError(
-            "Task line must have 3 or 4 fields: "
-            "<model> <input_path> <task_work_path> (legacy) or "
-            "<model> <dataset_name> <input_path> <task_work_path>"
+def _parse_task_record(line: str) -> dict[str, str]:
+    try:
+        payload = json.loads(line)
+    except json.JSONDecodeError:
+        parts = line.split()
+        if len(parts) == 4:
+            model, dataset_name, input_path, _task_work_path = parts
+        elif len(parts) == 3:
+            model, input_path, _task_work_path = parts
+            dataset_name = Path(input_path).stem
+        else:
+            raise ValueError(
+                "Task line must be JSON or have 3 or 4 fields: "
+                "<model> <input_path> <task_work_path> (legacy) or "
+                "<model> <dataset_name> <input_path> <task_work_path>"
+            ) from None
+        return {
+            "model": model,
+            "dataset_name": dataset_name,
+            "input_path": input_path,
+        }
+
+    if not isinstance(payload, dict):
+        raise TypeError(
+            f"Expected task payload to be a JSON object, got {type(payload).__name__}"
         )
+
+    required = {"model", "dataset_name", "input_path"}
+    missing = required.difference(payload)
+    if missing:
+        missing_str = ", ".join(sorted(missing))
+        raise ValueError(f"Task payload missing required fields: {missing_str}")
+    return {key: str(payload[key]) for key in required}
+
+
+def run_one_task(line: str, config_path: str):
+    task = _parse_task_record(line)
+    model = task["model"]
+    dataset_name = task["dataset_name"]
+    input_path = task["input_path"]
 
     print(f"Running adapter: {model} ({dataset_name})")
     with _catbench_source_on_syspath(config_path):
@@ -67,7 +95,6 @@ def run_one_task(line: str, config_path: str):
         run_adapter(
             model=model,
             input_path=input_path,
-            output_path=task_work_path,
             dataset_name=dataset_name,
             config_path=str(config_path),
         )

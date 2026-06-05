@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import runpy
 import sys
 from pathlib import Path
@@ -111,7 +112,7 @@ class MlipCliTests(unittest.TestCase):
 
 
 class MlipTaskTests(unittest.TestCase):
-    def test_make_task_lines_use_model_work_path_not_model_json(self) -> None:
+    def test_make_task_lines_emit_json_records(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
             dataset_path = tmp / "example_adsorption.json"
@@ -138,12 +139,14 @@ class MlipTaskTests(unittest.TestCase):
                 datasets=[str(dataset_path)],
             )
 
+        self.assertEqual(len(lines), 1)
         self.assertEqual(
-            lines,
-            [
-                "mace example "
-                f"{dataset_path.as_posix()} data/results/mlips/dev/example/mace"
-            ],
+            json.loads(lines[0]),
+            {
+                "model": "mace",
+                "dataset_name": "example",
+                "input_path": dataset_path.as_posix(),
+            },
         )
 
 
@@ -201,7 +204,10 @@ class MlipRunnerTests(unittest.TestCase):
             ) as mock_import_module:
 
                 run_one_task(
-                    "mace example data/raw_data/example.json data/results/mlips/dev/example/mace",
+                    (
+                        '{"model": "mace", "dataset_name": "example", '
+                        '"input_path": "data/raw_data/example.json"}'
+                    ),
                     str(config_path),
                 )
 
@@ -209,7 +215,44 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             input_path="data/raw_data/example.json",
-            output_path="data/results/mlips/dev/example/mace",
+            dataset_name="example",
+            config_path=str(config_path),
+        )
+
+    def test_run_one_task_accepts_legacy_task_lines(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            mock_runner = Mock()
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=mock_runner),
+            ):
+                run_one_task(
+                    "mace example data/raw_data/example.json data/results/mlips/dev/example/mace",
+                    str(config_path),
+                )
+
+        mock_runner.assert_called_once_with(
+            model="mace",
+            input_path="data/raw_data/example.json",
             dataset_name="example",
             config_path=str(config_path),
         )

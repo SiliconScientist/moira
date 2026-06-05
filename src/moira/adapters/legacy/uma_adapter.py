@@ -17,14 +17,13 @@ TASK_NAME = "oc20"
 def run(
     *,
     input_path: str,
-    output_path: str,
     dataset_name: str,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str,
     n_calcs: int = 3,
 ) -> None:
-    del input_path, output_path
+    del input_path
 
     config = load_config(config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
@@ -74,7 +73,6 @@ def main() -> None:
     args = parser.parse_args()
     run(
         input_path=args.input,
-        output_path=args.output,
         dataset_name=args.dataset_name,
         device=args.device,
         config_path=args.config,

@@ -23,13 +23,12 @@ def infer_benchmark(input_path: str) -> str:
 def run(
     *,
     input_path: str,
-    output_path: str,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str | None = None,
     n_calcs: int = 3,
 ) -> None:
-    del output_path, config_path
+    del config_path
 
     calculators = [
         mace_mp(
@@ -64,7 +63,6 @@ def main() -> None:
     args = parser.parse_args()
     run(
         input_path=args.input,
-        output_path=args.output,
         device=args.device,
         config_path=args.config,
         model_path=args.model_path,
