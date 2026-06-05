@@ -3,55 +3,21 @@ import argparse
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        prog="moira mlip",
-        description="Run MLIP processing pipelines",
+        prog="moira",
+        description="Run enabled MLIPs from config",
     )
-    subparsers = parser.add_subparsers(dest="subcommand", required=True)
-    # ---- submit ----
-    submit_p = subparsers.add_parser(
-        "submit", help="Create tasks and submit Slurm job array"
-    )
-    submit_p.add_argument("--config", default="mlip.toml")
-    submit_p.add_argument("--run-tag", default=None)
-    submit_p.add_argument("datasets", nargs="*", help="Optional dataset paths")
-    # ---- run-one ----
-    run_one_p = subparsers.add_parser(
-        "run-one", help="Run a single MLIP task (used inside Slurm)"
-    )
-    run_one_p.add_argument("--line", required=True)
-    run_one_p.add_argument("--config", default="mlip.toml")
-    # ---- make-tasks ----
-    make_tasks_p = subparsers.add_parser("make-tasks", help="Generate MLIP task file")
-    make_tasks_p.add_argument("--config", default="mlip.toml")
-    make_tasks_p.add_argument("--run-tag", required=True)
-    make_tasks_p.add_argument("--out", required=True)
-    make_tasks_p.add_argument("datasets", nargs="*")
+    parser.add_argument("--config", default="mlip.toml")
+    parser.add_argument("--run-tag", default=None)
+    parser.add_argument("datasets", nargs="*", help="Optional dataset paths")
     args = parser.parse_args(argv)
-    if args.subcommand == "submit":
-        from moira.mlip.submit import submit_jobs
 
-        submit_jobs(
-            config_path=args.config,
-            run_tag=args.run_tag,
-            datasets=args.datasets,
-        )
-    elif args.subcommand == "run-one":
-        from moira.mlip.runner import run_one_task
+    from moira.mlip.submit import submit_jobs
 
-        run_one_task(
-            line=args.line,
-            config_path=args.config,
-        )
-
-    elif args.subcommand == "make-tasks":
-        from moira.mlip.tasks import make_tasks
-
-        make_tasks(
-            config_path=args.config,
-            run_tag=args.run_tag,
-            out_path=args.out,
-            datasets=args.datasets,
-        )
+    submit_jobs(
+        config_path=args.config,
+        run_tag=args.run_tag,
+        datasets=args.datasets,
+    )
 
 
 if __name__ == "__main__":

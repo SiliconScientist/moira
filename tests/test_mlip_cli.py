@@ -60,11 +60,9 @@ class MlipCliTests(unittest.TestCase):
         ):
             self.assertNotIn(name, set(sys.modules) - before_import)
 
-    def test_submit_delegates_to_submit_jobs(self) -> None:
+    def test_default_invocation_delegates_to_submit_jobs(self) -> None:
         with patch("moira.mlip.submit.submit_jobs") as mock_submit_jobs:
-            mlip_main(
-                ["submit", "--config", "mlip.toml", "--run-tag", "tag", "dataset.json"]
-            )
+            mlip_main(["--config", "mlip.toml", "--run-tag", "tag", "dataset.json"])
 
         mock_submit_jobs.assert_called_once_with(
             config_path="mlip.toml",
@@ -72,40 +70,9 @@ class MlipCliTests(unittest.TestCase):
             datasets=["dataset.json"],
         )
 
-    def test_run_one_delegates_to_runner(self) -> None:
-        with patch("moira.mlip.runner.run_one_task") as mock_run_one_task:
-            mlip_main(["run-one", "--line", "task-line", "--config", "mlip.toml"])
-
-        mock_run_one_task.assert_called_once_with(
-            line="task-line",
-            config_path="mlip.toml",
-        )
-
-    def test_make_tasks_delegates_to_task_writer(self) -> None:
-        with patch("moira.mlip.tasks.make_tasks") as mock_make_tasks:
-            mlip_main(
-                [
-                    "make-tasks",
-                    "--config",
-                    "mlip.toml",
-                    "--run-tag",
-                    "tag",
-                    "--out",
-                    "tasks.txt",
-                    "dataset.json",
-                ]
-            )
-
-        mock_make_tasks.assert_called_once_with(
-            config_path="mlip.toml",
-            run_tag="tag",
-            out_path="tasks.txt",
-            datasets=["dataset.json"],
-        )
-
     def test_python_dash_m_moira_mlip_delegates_to_cli_main(self) -> None:
         with patch("moira.mlip.cli.main") as mock_mlip_main:
-            with patch.object(sys, "argv", ["python", "submit", "--config", "mlip.toml"]):
+            with patch.object(sys, "argv", ["python", "--config", "mlip.toml"]):
                 runpy.run_module("moira.mlip", run_name="__main__")
 
         mock_mlip_main.assert_called_once_with()
