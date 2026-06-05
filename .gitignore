@@ -12,3 +12,4 @@ mlip.toml
 
 # Batch submission script with user-sensitive settings
 slurm/mlip_one.sbatch
+slurm_output/
