@@ -45,14 +45,11 @@ def _get_rootstock_spec(config: dict[str, Any], model_name: str) -> dict[str, An
 def run(
     *,
     model: str,
-    input_path: str,
     dataset_name: str,
     device: str = "cuda",
     config_path: str = "mlip.toml",
     n_calcs: int = 3,
 ) -> None:
-    del input_path
-
     from rootstock import RootstockCalculator
 
     resolved_config_path = Path(config_path).resolve()

@@ -20,6 +20,15 @@ class ModelSpec:
     adapter_function: str
 
 
+LEGACY_ADAPTER_MODULES = {
+    "mace": "moira.adapters.legacy.mace_adapter",
+    "mattersim": "moira.adapters.legacy.mattersim_adapter",
+    "orb_v3": "moira.adapters.legacy.orb_v3_adapter",
+    "sevennet": "moira.adapters.legacy.sevennet_adapter",
+    "uma": "moira.adapters.legacy.uma_adapter",
+}
+
+
 def load_config(config_path: str | Path) -> dict[str, Any]:
     config_path = Path(config_path)
     if not config_path.exists():
@@ -43,6 +52,15 @@ def get_enabled_models(cfg: dict[str, Any]) -> list[str]:
     return [str(x) for x in enabled]
 
 
+def get_adapter_backend(cfg: dict[str, Any]) -> str:
+    backend = str(cfg.get("mlip", {}).get("adapter_backend", "rootstock"))
+    if backend not in {"rootstock", "legacy"}:
+        raise ValueError(
+            "mlip.adapter_backend must be one of: 'rootstock', 'legacy'"
+        )
+    return backend
+
+
 def get_rootstock_python(config_path: str | Path) -> str | None:
     cfg = load_config(config_path)
     python = cfg.get("mlip", {}).get("rootstock", {}).get("python")
@@ -52,13 +70,24 @@ def get_rootstock_python(config_path: str | Path) -> str | None:
 def get_model_specs(config_path: str | Path) -> dict[str, ModelSpec]:
     cfg = load_config(config_path)
     enabled = get_enabled_models(cfg)
+    backend = get_adapter_backend(cfg)
 
     specs: dict[str, ModelSpec] = {}
     for name in enabled:
+        if backend == "legacy":
+            adapter_module = LEGACY_ADAPTER_MODULES.get(name)
+            if adapter_module is None:
+                known = ", ".join(sorted(LEGACY_ADAPTER_MODULES))
+                raise KeyError(
+                    f"No legacy adapter registered for model '{name}'. "
+                    f"Known legacy adapters: {known}"
+                )
+        else:
+            adapter_module = "moira.adapters.rootstock_adapter"
         specs[name] = ModelSpec(
             name=name,
-            python=get_rootstock_python(config_path),
-            adapter_module="moira.adapters.rootstock_adapter",
+            python=get_rootstock_python(config_path) if backend == "rootstock" else None,
+            adapter_module=adapter_module,
             adapter_function="run",
         )
     return specs

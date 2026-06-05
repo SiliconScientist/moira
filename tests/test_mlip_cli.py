@@ -122,7 +122,6 @@ class MlipTaskTests(unittest.TestCase):
             {
                 "model": "mace",
                 "dataset_name": "example",
-                "input_path": dataset_path.as_posix(),
             },
         )
 
@@ -150,6 +149,40 @@ class MlipRegistryTests(unittest.TestCase):
 
         self.assertEqual(specs["mace"].adapter_module, "moira.adapters.rootstock_adapter")
         self.assertEqual(specs["mace"].adapter_function, "run")
+
+    def test_model_specs_can_select_legacy_adapters(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace", "uma"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                        "",
+                        "[mlip.rootstock.models.uma]",
+                        'model = "uma"',
+                        'mlip_name = "uma-s-1p1"',
+                        'checkpoint = "uma.pt"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(specs["mace"].adapter_module, "moira.adapters.legacy.mace_adapter")
+        self.assertEqual(specs["uma"].adapter_module, "moira.adapters.legacy.uma_adapter")
+        self.assertIsNone(specs["mace"].python)
 
 
 class MlipRunnerTests(unittest.TestCase):
@@ -191,7 +224,49 @@ class MlipRunnerTests(unittest.TestCase):
         mock_import_module.assert_called_once_with("moira.adapters.rootstock_adapter")
         mock_runner.assert_called_once_with(
             model="mace",
-            input_path="data/raw_data/example.json",
+            dataset_name="example",
+            config_path=str(config_path),
+        )
+
+    def test_run_one_task_dispatches_legacy_adapter_when_selected(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            mock_runner = Mock()
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=mock_runner),
+            ) as mock_import_module:
+
+                run_one_task(
+                    (
+                        '{"model": "mace", "dataset_name": "example", '
+                        '"input_path": "data/raw_data/example.json"}'
+                    ),
+                    str(config_path),
+                )
+
+        mock_import_module.assert_called_once_with("moira.adapters.legacy.mace_adapter")
+        mock_runner.assert_called_once_with(
+            model="mace",
             dataset_name="example",
             config_path=str(config_path),
         )
@@ -229,7 +304,6 @@ class MlipRunnerTests(unittest.TestCase):
 
         mock_runner.assert_called_once_with(
             model="mace",
-            input_path="data/raw_data/example.json",
             dataset_name="example",
             config_path=str(config_path),
         )

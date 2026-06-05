@@ -105,7 +105,7 @@ def make_task_lines(
     dataset_paths = resolve_datasets(datasets, cfg)
     lines: list[str] = []
     for dpath in dataset_paths:
-        dpath_for_run = maybe_make_dev_dataset(dpath, cfg)
+        maybe_make_dev_dataset(dpath, cfg)
         dname_base = dataset_name_from_path(dpath)
         dname_task = dname_base
         if dev_run and not dname_task.endswith("_dev"):
@@ -116,7 +116,6 @@ def make_task_lines(
                     {
                         "model": model,
                         "dataset_name": dname_task,
-                        "input_path": dpath_for_run.as_posix(),
                     }
                 )
             )

@@ -58,16 +58,18 @@ def _parse_task_record(line: str) -> dict[str, str]:
         elif len(parts) == 3:
             model, input_path, _task_work_path = parts
             dataset_name = Path(input_path).stem
+        elif len(parts) == 2:
+            model, dataset_name = parts
         else:
             raise ValueError(
-                "Task line must be JSON or have 3 or 4 fields: "
-                "<model> <input_path> <task_work_path> (legacy) or "
+                "Task line must be JSON or have 2, 3, or 4 fields: "
+                "<model> <dataset_name>, "
+                "<model> <input_path> <task_work_path> (legacy), or "
                 "<model> <dataset_name> <input_path> <task_work_path>"
             ) from None
         return {
             "model": model,
             "dataset_name": dataset_name,
-            "input_path": input_path,
         }
 
     if not isinstance(payload, dict):
@@ -75,7 +77,7 @@ def _parse_task_record(line: str) -> dict[str, str]:
             f"Expected task payload to be a JSON object, got {type(payload).__name__}"
         )
 
-    required = {"model", "dataset_name", "input_path"}
+    required = {"model", "dataset_name"}
     missing = required.difference(payload)
     if missing:
         missing_str = ", ".join(sorted(missing))
@@ -87,14 +89,12 @@ def run_one_task(line: str, config_path: str):
     task = _parse_task_record(line)
     model = task["model"]
     dataset_name = task["dataset_name"]
-    input_path = task["input_path"]
 
     print(f"Running adapter: {model} ({dataset_name})")
     with _catbench_source_on_syspath(config_path):
         run_adapter = _load_adapter_callable(model, config_path)
         run_adapter(
             model=model,
-            input_path=input_path,
             dataset_name=dataset_name,
             config_path=str(config_path),
         )

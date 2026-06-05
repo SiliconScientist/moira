@@ -2,45 +2,58 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 from catbench.adsorption import AdsorptionCalculation
 from fairchem.core import FAIRChemCalculator
 from fairchem.core.units.mlip_unit import load_predict_unit
 
 from moira.mlip.registry import load_config
 
-MLIP_NAME = "uma-s-1p1"
-TASK_NAME = "oc20"
+DEFAULT_MLIP_NAME = "uma-s-1p1"
+DEFAULT_TASK_NAME = "oc20"
 
 
 def run(
     *,
-    input_path: str,
+    model: str,
     dataset_name: str,
     device: str = "cuda",
     config_path: str = "config.toml",
-    model_path: str,
+    model_path: str | None = None,
     n_calcs: int = 3,
 ) -> None:
-    del input_path
-
     config = load_config(config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
+    spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
+    metadata = spec.get("metadata", {})
+    resolved_model_path = model_path or spec.get("checkpoint")
+    if resolved_model_path is None:
+        raise KeyError(f"mlip.rootstock.models.{model}.checkpoint is required")
+    checkpoint_path = Path(resolved_model_path)
+    if (
+        not checkpoint_path.is_absolute()
+        and any(sep in resolved_model_path for sep in ("/", "\\"))
+    ):
+        resolved_model_path = str((Path(config_path).parent / checkpoint_path).resolve())
+    mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
+    task_name = str(metadata.get("task_name", DEFAULT_TASK_NAME))
 
     calculators = []
     for _ in range(n_calcs):
         predict_unit = load_predict_unit(
-            path=model_path,
+            path=resolved_model_path,
             device=device,
         )
         calc = FAIRChemCalculator(
             predict_unit=predict_unit,
-            task_name=TASK_NAME,
+            task_name=task_name,
         )
         calculators.append(calc)
 
     adsorption_calc = AdsorptionCalculation(
         calculators,
-        mlip_name=MLIP_NAME,
+        mlip_name=mlip_name,
         benchmark=dataset_name,
         optimizer=optimizer,
     )

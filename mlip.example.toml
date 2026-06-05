@@ -24,11 +24,13 @@ H2 = { H = 2 }
 [mlip]
 dev_n = 2
 dev_run = false
+adapter_backend = "rootstock" # "rootstock" or "legacy"
 optimizer = "FIRE"
 # Optional:
 # run_tag = "dev"
 # dataset = "data/raw_data/example_adsorption.json"
 # datasets = ["data/raw_data/example_adsorption.json"]
+# catbench_source = "vendor/catbench"
 
 [mlip.models]
 enabled = ["mace", "mattersim", "orb_v3", "sevennet", "uma"]

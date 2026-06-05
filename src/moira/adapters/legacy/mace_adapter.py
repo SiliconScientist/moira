@@ -7,31 +7,36 @@ from pathlib import Path
 from catbench.adsorption import AdsorptionCalculation
 from mace.calculators import mace_mp
 
-MLIP_NAME = "mace-mh-1"
+from moira.mlip.registry import load_config
 
-
-def infer_benchmark(input_path: str) -> str:
-    name = Path(input_path).stem
-    if not name.endswith("_adsorption"):
-        raise ValueError(
-            f"Expected dataset name to end with '_adsorption.json', got {name}"
-        )
-    return name.replace("_adsorption", "")
+DEFAULT_MLIP_NAME = "mace-mh-1"
 
 
 def run(
     *,
-    input_path: str,
+    model: str,
+    dataset_name: str,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str | None = None,
     n_calcs: int = 3,
 ) -> None:
-    del config_path
+    config = load_config(config_path)
+    spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
+    resolved_model_path = model_path or spec.get("checkpoint")
+    mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
+
+    if resolved_model_path is not None:
+        checkpoint_path = Path(resolved_model_path)
+        if (
+            not checkpoint_path.is_absolute()
+            and any(sep in resolved_model_path for sep in ("/", "\\"))
+        ):
+            resolved_model_path = str((Path(config_path).parent / checkpoint_path).resolve())
 
     calculators = [
         mace_mp(
-            model=model_path,
+            model=resolved_model_path,
             device=device,
             default_dtype="float32",
             head="omat_pbe",
@@ -41,7 +46,7 @@ def run(
 
     adsorption_calc = AdsorptionCalculation(
         calculators,
-        mlip_name=MLIP_NAME,
-        benchmark=infer_benchmark(input_path),
+        mlip_name=mlip_name,
+        benchmark=dataset_name,
     )
     adsorption_calc.run()
