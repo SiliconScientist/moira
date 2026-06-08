@@ -54,6 +54,15 @@ if [[ -z "$MODEL" ]]; then
 fi
 
 MODEL_PYTHON="$ROOT_DIR/envs/$MODEL/.venv/bin/python"
+echo "MODEL=$MODEL"
+echo "MODEL_PYTHON=$MODEL_PYTHON"
+ls -l "$MODEL_PYTHON" || true
+readlink -f "$MODEL_PYTHON" || true
+if [[ -x "$MODEL_PYTHON" ]]; then
+    echo "MODEL_PYTHON_EXECUTABLE=yes"
+else
+    echo "MODEL_PYTHON_EXECUTABLE=no"
+fi
 if [[ -x "$MODEL_PYTHON" ]]; then
     PYTHON_EXEC="$MODEL_PYTHON"
 else
