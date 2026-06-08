@@ -74,6 +74,12 @@ else
 fi
 
 cd "$ROOT_DIR"
+PROJECT_SRC="$ROOT_DIR/src"
+if [[ -n "${PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="$PROJECT_SRC:$PYTHONPATH"
+else
+    export PYTHONPATH="$PROJECT_SRC"
+fi
 
 echo "=== runtime ==="
 date
@@ -84,6 +90,7 @@ echo "SLURM_ARRAY_TASK_ID=${SLURM_ARRAY_TASK_ID:-}"
 echo "SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}"
 echo "PYTHON_EXEC=$PYTHON_EXEC"
+echo "PYTHONPATH=${PYTHONPATH:-}"
 echo
 
 echo "=== nvidia-smi ==="
