@@ -122,6 +122,7 @@ class MlipTaskTests(unittest.TestCase):
                 "\n".join(
                     [
                         "[mlip]",
+                        'device = "cpu"',
                         "dev_n = 2",
                         "dev_run = false",
                         "",
@@ -187,6 +188,7 @@ class MlipRegistryTests(unittest.TestCase):
                     [
                         "[mlip]",
                         'adapter_backend = "legacy"',
+                        'device = "cpu"',
                         "dev_n = 2",
                         "dev_run = false",
                         "",
@@ -405,6 +407,7 @@ class MlipRunnerTests(unittest.TestCase):
                 "\n".join(
                     [
                         "[mlip]",
+                        'device = "cpu"',
                         "dev_n = 2",
                         "dev_run = false",
                         "",
@@ -436,6 +439,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            device="cpu",
             config_path=str(config_path.resolve()),
         )
 
@@ -478,6 +482,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            device="cpu",
             config_path=str(config_path.resolve()),
         )
 
@@ -515,5 +520,90 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            device="cpu",
+            config_path=str(config_path.resolve()),
+        )
+
+    def test_run_one_task_uses_configured_cpu_device(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            mock_runner = Mock()
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=mock_runner),
+            ):
+                run_one_task(
+                    '{"model": "mace", "dataset_name": "example"}',
+                    str(config_path),
+                )
+
+        mock_runner.assert_called_once_with(
+            model="mace",
+            dataset_name="example",
+            device="cpu",
+            config_path=str(config_path.resolve()),
+        )
+
+    def test_run_one_task_falls_back_to_cpu_when_cuda_unavailable(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cuda"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            mock_runner = Mock()
+            fake_torch = SimpleNamespace(
+                cuda=SimpleNamespace(is_available=lambda: False)
+            )
+            with (
+                patch.dict(sys.modules, {"torch": fake_torch}),
+                patch(
+                    "moira.mlip.runner.importlib.import_module",
+                    return_value=SimpleNamespace(run=mock_runner),
+                ),
+            ):
+                run_one_task(
+                    '{"model": "mace", "dataset_name": "example"}',
+                    str(config_path),
+                )
+
+        mock_runner.assert_called_once_with(
+            model="mace",
+            dataset_name="example",
+            device="cpu",
             config_path=str(config_path.resolve()),
         )

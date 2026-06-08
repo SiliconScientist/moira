@@ -25,6 +25,7 @@ H2 = { H = 2 }
 dev_n = 2
 dev_run = false
 adapter_backend = "rootstock" # "rootstock" or "legacy"
+device = "cuda" # falls back to "cpu" if CUDA is unavailable
 optimizer = "FIRE"
 # Optional:
 # run_tag = "dev"

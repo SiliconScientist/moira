@@ -11,6 +11,7 @@ from moira.mlip.registry import (
     get_catbench_source_path,
     get_model_adapter_function,
     get_model_adapter_module,
+    load_config,
     get_model_python,
 )
 
@@ -52,6 +53,20 @@ def _load_adapter_callable(model: str, config_path: str):
 
 def _project_src_path() -> Path:
     return Path(__file__).resolve().parents[2]
+
+
+def _resolve_device(config_path: str) -> str:
+    config = load_config(config_path)
+    device = str(config.get("mlip", {}).get("device", "cuda")).strip().lower()
+    if device != "cuda":
+        return device
+
+    try:
+        import torch
+    except ModuleNotFoundError:
+        return "cpu"
+
+    return "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def _maybe_reexec_with_model_python(model: str, line: str, config_path: str) -> str:
@@ -138,6 +153,7 @@ def run_one_task(line: str, config_path: str):
     model = task["model"]
     dataset_name = task["dataset_name"]
     resolved_config_path = _maybe_reexec_with_model_python(model, line, config_path)
+    device = _resolve_device(resolved_config_path)
 
     print(f"Running adapter: {model} ({dataset_name})")
     with _catbench_source_on_syspath(resolved_config_path):
@@ -145,5 +161,6 @@ def run_one_task(line: str, config_path: str):
         run_adapter(
             model=model,
             dataset_name=dataset_name,
+            device=device,
             config_path=resolved_config_path,
         )
