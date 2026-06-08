@@ -1,1 +1,5 @@
-mace-torch
+--index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://pypi.org/simple
+
+torch==2.10.0
+mace-torch==0.3.16
