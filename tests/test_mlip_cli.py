@@ -647,6 +647,23 @@ class CatbenchPathPatchTests(unittest.TestCase):
             (config_path.parent / "data/results/MamunHighT2019").resolve(),
         )
 
+    def test_resolve_results_dir_appends_dev_suffix_for_dev_runs(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "configs" / "mlip.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("", encoding="utf-8")
+
+            resolved = resolve_results_dir(
+                "data/results/MamunHighT2019",
+                config_path=config_path,
+                dev_run=True,
+            )
+
+        self.assertEqual(
+            resolved,
+            (config_path.parent / "data/results/MamunHighT2019_dev").resolve(),
+        )
+
     def test_patch_adsorption_paths_overrides_dataset_and_result_helpers(self) -> None:
         catbench = ModuleType("catbench")
         adsorption = ModuleType("catbench.adsorption")

@@ -42,7 +42,8 @@ moira --config mlip.toml --run-tag dev data/raw_data/example_adsorption.json
 - Enabled models come from `mlip.toml`
 - Optional dataset arguments override `mlip.dataset` or `mlip.datasets`
 - Optional `mlip.results_dir` redirects CatBench output from `./result` to a
-  path you control, for example `data/results/MamunHighT2019`
+  path you control, for example `data/results/MamunHighT2019`; when
+  `mlip.dev_run = true`, Moira automatically uses a `_dev` suffixed sibling
 - Moira patches CatBench's adsorption loader so the resolved dataset JSON path is
   used directly; you do not need a `raw_data/` directory in the execution cwd
 - `--run-tag` controls the Slurm task/result grouping

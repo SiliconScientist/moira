@@ -9,6 +9,7 @@ def resolve_results_dir(
     results_dir: str | None,
     *,
     config_path: str | Path,
+    dev_run: bool = False,
 ) -> Path | None:
     if results_dir is None:
         return None
@@ -17,6 +18,8 @@ def resolve_results_dir(
     path = Path(results_dir)
     if not path.is_absolute():
         path = (resolved_config_path.parent / path).resolve()
+    if dev_run and not path.name.endswith("_dev"):
+        path = path.with_name(f"{path.name}_dev")
     return path
 
 
