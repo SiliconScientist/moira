@@ -8,6 +8,7 @@ from typing import Any
 
 from catbench.adsorption import AdsorptionCalculation
 
+from moira.adapters.catbench_paths import patch_adsorption_dataset_path
 from moira.mlip.registry import load_config
 
 
@@ -46,6 +47,7 @@ def run(
     *,
     model: str,
     dataset_name: str,
+    dataset_path: str | None = None,
     device: str = "cuda",
     config_path: str = "mlip.toml",
     n_calcs: int = 3,
@@ -73,10 +75,11 @@ def run(
             for _ in range(n_calcs)
         ]
 
-        adsorption_calc = AdsorptionCalculation(
-            calculators,
-            mlip_name=str(spec["mlip_name"]),
-            benchmark=dataset_name,
-            optimizer=optimizer,
-        )
-        adsorption_calc.run()
+        with patch_adsorption_dataset_path(dataset_path):
+            adsorption_calc = AdsorptionCalculation(
+                calculators,
+                mlip_name=str(spec["mlip_name"]),
+                benchmark=dataset_name,
+                optimizer=optimizer,
+            )
+            adsorption_calc.run()

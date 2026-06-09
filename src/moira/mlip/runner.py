@@ -121,6 +121,11 @@ def _parse_task_record(line: str) -> dict[str, str]:
         elif len(parts) == 3:
             model, input_path, _task_work_path = parts
             dataset_name = Path(input_path).stem
+            return {
+                "model": model,
+                "dataset_name": dataset_name,
+                "input_path": input_path,
+            }
         elif len(parts) == 2:
             model, dataset_name = parts
         else:
@@ -133,6 +138,7 @@ def _parse_task_record(line: str) -> dict[str, str]:
         return {
             "model": model,
             "dataset_name": dataset_name,
+            "input_path": input_path,
         }
 
     if not isinstance(payload, dict):
@@ -145,13 +151,15 @@ def _parse_task_record(line: str) -> dict[str, str]:
     if missing:
         missing_str = ", ".join(sorted(missing))
         raise ValueError(f"Task payload missing required fields: {missing_str}")
-    return {key: str(payload[key]) for key in required}
+    allowed = required | {"input_path"}
+    return {key: str(payload[key]) for key in allowed if key in payload}
 
 
 def run_one_task(line: str, config_path: str):
     task = _parse_task_record(line)
     model = task["model"]
     dataset_name = task["dataset_name"]
+    dataset_path = task.get("input_path")
     resolved_config_path = _maybe_reexec_with_model_python(model, line, config_path)
     device = _resolve_device(resolved_config_path)
 
@@ -161,6 +169,7 @@ def run_one_task(line: str, config_path: str):
         run_adapter(
             model=model,
             dataset_name=dataset_name,
+            dataset_path=dataset_path,
             device=device,
             config_path=resolved_config_path,
         )

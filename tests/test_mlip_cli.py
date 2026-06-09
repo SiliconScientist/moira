@@ -146,6 +146,7 @@ class MlipTaskTests(unittest.TestCase):
             {
                 "model": "mace",
                 "dataset_name": "example",
+                "input_path": str(dataset_path.resolve()),
             },
         )
 
@@ -201,6 +202,7 @@ class MlipTaskTests(unittest.TestCase):
                 {
                     "model": "mace",
                     "dataset_name": "example_dev",
+                    "input_path": str(dev_dataset_path.resolve()),
                 },
             )
 
@@ -494,6 +496,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
         )
@@ -537,6 +540,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
         )
@@ -575,6 +579,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
         )
@@ -614,6 +619,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            dataset_path=None,
             device="cpu",
             config_path=str(config_path.resolve()),
         )
@@ -659,6 +665,7 @@ class MlipRunnerTests(unittest.TestCase):
         mock_runner.assert_called_once_with(
             model="mace",
             dataset_name="example",
+            dataset_path=None,
             device="cpu",
             config_path=str(config_path.resolve()),
         )

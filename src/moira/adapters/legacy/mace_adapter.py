@@ -7,6 +7,7 @@ from pathlib import Path
 from catbench.adsorption import AdsorptionCalculation
 from mace.calculators import mace_mp
 
+from moira.adapters.catbench_paths import patch_adsorption_dataset_path
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "mace-mh-1"
@@ -16,6 +17,7 @@ def run(
     *,
     model: str,
     dataset_name: str,
+    dataset_path: str | None = None,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str | None = None,
@@ -44,9 +46,10 @@ def run(
         for _ in range(n_calcs)
     ]
 
-    adsorption_calc = AdsorptionCalculation(
-        calculators,
-        mlip_name=mlip_name,
-        benchmark=dataset_name,
-    )
-    adsorption_calc.run()
+    with patch_adsorption_dataset_path(dataset_path):
+        adsorption_calc = AdsorptionCalculation(
+            calculators,
+            mlip_name=mlip_name,
+            benchmark=dataset_name,
+        )
+        adsorption_calc.run()

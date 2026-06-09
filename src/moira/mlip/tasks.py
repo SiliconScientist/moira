@@ -116,6 +116,7 @@ def make_task_lines(
                     {
                         "model": model,
                         "dataset_name": dname_task,
+                        "input_path": str(task_dataset_path.resolve()),
                     }
                 )
             )

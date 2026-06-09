@@ -5,6 +5,7 @@ from __future__ import annotations
 from catbench.adsorption import AdsorptionCalculation
 from sevenn.calculator import SevenNetCalculator
 
+from moira.adapters.catbench_paths import patch_adsorption_dataset_path
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "7net-omni"
@@ -15,6 +16,7 @@ def run(
     *,
     model: str,
     dataset_name: str,
+    dataset_path: str | None = None,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str | None = None,
@@ -33,10 +35,11 @@ def run(
         SevenNetCalculator(model=mlip_name, modal=modal) for _ in range(n_calcs)
     ]
 
-    adsorption_calc = AdsorptionCalculation(
-        calculators,
-        mlip_name=mlip_name,
-        benchmark=dataset_name,
-        optimizer=optimizer,
-    )
-    adsorption_calc.run()
+    with patch_adsorption_dataset_path(dataset_path):
+        adsorption_calc = AdsorptionCalculation(
+            calculators,
+            mlip_name=mlip_name,
+            benchmark=dataset_name,
+            optimizer=optimizer,
+        )
+        adsorption_calc.run()

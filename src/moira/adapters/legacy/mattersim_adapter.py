@@ -7,6 +7,7 @@ from pathlib import Path
 from catbench.adsorption import AdsorptionCalculation
 from mattersim.forcefield.potential import MatterSimCalculator, Potential
 
+from moira.adapters.catbench_paths import patch_adsorption_dataset_path
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "mattersim-v1-5m"
@@ -16,6 +17,7 @@ def run(
     *,
     model: str,
     dataset_name: str,
+    dataset_path: str | None = None,
     device: str = "cuda",
     config_path: str = "config.toml",
     model_path: str | None = None,
@@ -41,10 +43,11 @@ def run(
         )
         calculators.append(MatterSimCalculator(potential=potential))
 
-    adsorption_calc = AdsorptionCalculation(
-        calculators,
-        mlip_name=mlip_name,
-        benchmark=dataset_name,
-        optimizer=optimizer,
-    )
-    adsorption_calc.run()
+    with patch_adsorption_dataset_path(dataset_path):
+        adsorption_calc = AdsorptionCalculation(
+            calculators,
+            mlip_name=mlip_name,
+            benchmark=dataset_name,
+            optimizer=optimizer,
+        )
+        adsorption_calc.run()
