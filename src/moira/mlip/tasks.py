@@ -105,8 +105,8 @@ def make_task_lines(
     dataset_paths = resolve_datasets(datasets, cfg)
     lines: list[str] = []
     for dpath in dataset_paths:
-        maybe_make_dev_dataset(dpath, cfg)
-        dname_base = dataset_name_from_path(dpath)
+        task_dataset_path = maybe_make_dev_dataset(dpath, cfg)
+        dname_base = dataset_name_from_path(task_dataset_path)
         dname_task = dname_base
         if dev_run and not dname_task.endswith("_dev"):
             dname_task = f"{dname_task}_dev"

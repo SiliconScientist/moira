@@ -149,6 +149,61 @@ class MlipTaskTests(unittest.TestCase):
             },
         )
 
+    def test_make_task_lines_use_generated_dev_dataset_name(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "first": {"value": 1},
+                        "second": {"value": 2},
+                        "third": {"value": 3},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = true",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            lines = make_task_lines(
+                config_path=config_path,
+                run_tag="dev",
+                datasets=[str(dataset_path)],
+            )
+            dev_dataset_path = tmp / "example_dev_adsorption.json"
+            self.assertTrue(dev_dataset_path.exists())
+            self.assertEqual(
+                json.loads(dev_dataset_path.read_text(encoding="utf-8")),
+                {
+                    "first": {"value": 1},
+                    "second": {"value": 2},
+                },
+            )
+            self.assertEqual(len(lines), 1)
+            self.assertEqual(
+                json.loads(lines[0]),
+                {
+                    "model": "mace",
+                    "dataset_name": "example_dev",
+                },
+            )
+
 
 class MlipRegistryTests(unittest.TestCase):
     def test_model_specs_expose_importable_adapter_callable(self) -> None:
