@@ -7,7 +7,7 @@ from pathlib import Path
 from catbench.adsorption import AdsorptionCalculation
 from mace.calculators import mace_mp
 
-from moira.adapters.catbench_paths import patch_adsorption_dataset_path
+from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "mace-mh-1"
@@ -24,6 +24,10 @@ def run(
     n_calcs: int = 3,
 ) -> None:
     config = load_config(config_path)
+    results_dir = resolve_results_dir(
+        config.get("mlip", {}).get("results_dir"),
+        config_path=config_path,
+    )
     spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
     resolved_model_path = model_path or spec.get("checkpoint")
     mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
@@ -46,7 +50,10 @@ def run(
         for _ in range(n_calcs)
     ]
 
-    with patch_adsorption_dataset_path(dataset_path):
+    with patch_adsorption_paths(
+        dataset_path=dataset_path,
+        results_dir=results_dir,
+    ):
         adsorption_calc = AdsorptionCalculation(
             calculators,
             mlip_name=mlip_name,

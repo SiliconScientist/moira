@@ -8,7 +8,7 @@ from catbench.adsorption import AdsorptionCalculation
 from orb_models.forcefield import pretrained
 from orb_models.forcefield.inference.calculator import ORBCalculator
 
-from moira.adapters.catbench_paths import patch_adsorption_dataset_path
+from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "orb-v3-conservative-inf-omat"
@@ -26,6 +26,10 @@ def run(
 ) -> None:
     config = load_config(config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
+    results_dir = resolve_results_dir(
+        config.get("mlip", {}).get("results_dir"),
+        config_path=config_path,
+    )
     spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
     resolved_model_path = model_path or spec.get("checkpoint")
     mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
@@ -48,7 +52,10 @@ def run(
             ORBCalculator(model=orbff, atoms_adapter=atoms_adapter, device=device)
         )
 
-    with patch_adsorption_dataset_path(dataset_path):
+    with patch_adsorption_paths(
+        dataset_path=dataset_path,
+        results_dir=results_dir,
+    ):
         adsorption_calc = AdsorptionCalculation(
             calculators,
             mlip_name=mlip_name,

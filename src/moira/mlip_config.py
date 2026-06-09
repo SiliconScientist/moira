@@ -40,6 +40,7 @@ class MLIPConfig(BaseModel):
     dev_n: int
     dev_run: bool
     dataset: Optional[str] = None
+    results_dir: Optional[Path] = None
     adapter_backend: str = "rootstock"
     optimizer: str = "LBFGS"
     models: MLIPModelsConfig
