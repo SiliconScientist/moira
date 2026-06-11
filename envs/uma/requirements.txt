@@ -1,2 +1,2 @@
-fairchem-core==2.21.0
+fairchem-core==2.5.0
 setuptools<82
