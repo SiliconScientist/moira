@@ -3,7 +3,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
+ORB_V3_PYTHON_VERSION="${ORB_V3_PYTHON_VERSION:-3.12}"
 UV_BIN="${UV_BIN:-uv}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/moira-mlip-envs.XXXXXX")"
 FORCE_REBUILD=0
@@ -16,7 +17,8 @@ Options:
   --force    Remove and recreate existing virtual environments.
 
 Environment:
-  PYTHON_VERSION   Python version for MLIP environments.
+  PYTHON_VERSION          Default Python version for MLIP environments.
+  ORB_V3_PYTHON_VERSION   Python version for envs/orb_v3.
 EOF
 }
 
@@ -90,9 +92,14 @@ pids=()
 for req_file in "${requirement_files[@]}"; do
     model_dir="$(dirname "$req_file")"
     model_name="$(basename "$model_dir")"
+    python_version="$PYTHON_VERSION"
 
-    if create_env "$model_dir" "$PYTHON_VERSION"; then
-        echo "==> Creating $model_name environment (Python $PYTHON_VERSION)"
+    if [[ "$model_name" == "orb_v3" ]]; then
+        python_version="$ORB_V3_PYTHON_VERSION"
+    fi
+
+    if create_env "$model_dir" "$python_version"; then
+        echo "==> Creating $model_name environment (Python $python_version)"
     else
         echo "==> Skipping $model_name environment (already exists)"
         continue

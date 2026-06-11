@@ -1,4 +1,4 @@
-All virtual environments created with Python 3.11.
+All virtual environments created with Python 3.13 by default.
 
 Create or rebuild the per-model environments with:
 
@@ -15,10 +15,11 @@ This skips any existing `envs/<model>/.venv` by default. To force a full rebuild
 Only environments with a completed install are skipped. If a prior run failed
 mid-install, rerunning the script will rebuild that environment automatically.
 
-By default, all environments use Python 3.11. You can override that default:
+By default, all environments use Python 3.13 except `orb_v3`, which uses
+Python 3.12. You can override either default:
 
 ```bash
-PYTHON_VERSION=3.11 ./envs/setup_mlip_envs.sh
+PYTHON_VERSION=3.13 ORB_V3_PYTHON_VERSION=3.12 ./envs/setup_mlip_envs.sh
 ```
 
 Per-model environments should contain only model-specific dependencies.
