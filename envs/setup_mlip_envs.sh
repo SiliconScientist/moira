@@ -3,7 +3,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PYTHON_VERSION="${PYTHON_VERSION:-3.13.0}"
+PYTHON_VERSION="${PYTHON_VERSION:-3.11}"
 UV_BIN="${UV_BIN:-uv}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/moira-mlip-envs.XXXXXX")"
 FORCE_REBUILD=0
@@ -14,6 +14,9 @@ Usage: ./setup_mlip_envs.sh [--force]
 
 Options:
   --force    Remove and recreate existing virtual environments.
+
+Environment:
+  PYTHON_VERSION   Python version for MLIP environments.
 EOF
 }
 
@@ -58,6 +61,7 @@ fi
 
 create_env() {
     local model_dir="$1"
+    local python_version="$2"
     local venv_dir="$model_dir/.venv"
     local ready_file="$venv_dir/.moira-ready"
 
@@ -66,7 +70,7 @@ create_env() {
     fi
 
     rm -rf "$venv_dir"
-    "$UV_BIN" venv --python "$PYTHON_VERSION" "$venv_dir"
+    "$UV_BIN" venv --python "$python_version" "$venv_dir"
 }
 
 install_requirements() {
@@ -86,10 +90,9 @@ pids=()
 for req_file in "${requirement_files[@]}"; do
     model_dir="$(dirname "$req_file")"
     model_name="$(basename "$model_dir")"
-    venv_dir="$model_dir/.venv"
 
-    if create_env "$model_dir"; then
-        echo "==> Creating $model_name environment"
+    if create_env "$model_dir" "$PYTHON_VERSION"; then
+        echo "==> Creating $model_name environment (Python $PYTHON_VERSION)"
     else
         echo "==> Skipping $model_name environment (already exists)"
         continue
@@ -124,4 +127,4 @@ if [[ "$failed" -ne 0 ]]; then
 fi
 
 echo
-echo "All MLIP environments created with Python $PYTHON_VERSION."
+echo "All MLIP environments created."
