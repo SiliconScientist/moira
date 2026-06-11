@@ -41,7 +41,7 @@ install_requirements() {
     local req_file="$model_dir/requirements.txt"
     local venv_python="$model_dir/.venv/bin/python"
 
-    "$venv_python" -m pip install -r "$req_file"
+    "$UV_BIN" pip install --python "$venv_python" -r "$req_file"
 }
 
 models=()
