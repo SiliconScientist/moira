@@ -1,1 +1,1 @@
-sevenn
+sevenn==0.12.1
