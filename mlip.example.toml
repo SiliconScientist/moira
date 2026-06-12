@@ -11,7 +11,7 @@
 [ingest]
 source = "data/raw_vasp/systems"
 dataset_name = "example_dataset"
-profile = "vasp_mapping"         # or "elemental_n_ase_db"
+profile = "vasp_mapping"         # or "elemental_adsorption_ase_db"
 
 [ingest.stoich]
 elements = ["N", "C", "O", "H"]

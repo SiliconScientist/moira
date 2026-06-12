@@ -13,7 +13,7 @@ from moira.ingest.site_constraints import strip_adsorbate_from_adslab
 def annotate_elemental_adsorption_bundle(
     bundle: DatasetBundle,
     *,
-    adsorbate_symbol: str,
+    adsorbate_symbol: str | None = None,
     structure_kind: str = "adslab",
 ) -> DatasetBundle:
     structures = [
@@ -37,21 +37,31 @@ def annotate_elemental_adsorption_bundle(
 def synthesize_adsorption_references(
     bundle: DatasetBundle,
     *,
-    adsorbate_symbol: str,
-    gas_record: StructureRecord,
+    adsorbate_symbol: str | None = None,
+    gas_record: StructureRecord | None = None,
+    gas_record_builder: Callable[[str], StructureRecord] | None = None,
     slab_key_fn: Callable[[StructureRecord], str] | None = None,
 ) -> DatasetBundle:
     synthesized_structures: list[StructureRecord] = []
     synthesized_references: list[ReferenceSet] = []
     slab_records: dict[str, StructureRecord] = {}
+    gas_records: dict[str, StructureRecord] = {}
     slab_key_for = slab_key_fn or _default_slab_key
+    build_gas_record = gas_record_builder or _default_gas_record_builder
 
     for structure in bundle.structures:
         if structure.kind != "adslab":
             synthesized_structures.append(structure)
             continue
 
-        adslab = _normalized_adslab(structure, adsorbate_symbol=adsorbate_symbol)
+        structure_adsorbate_symbol = _resolved_adsorbate_symbol(
+            structure,
+            adsorbate_symbol=adsorbate_symbol,
+        )
+        adslab = _normalized_adslab(
+            structure,
+            adsorbate_symbol=structure_adsorbate_symbol,
+        )
         synthesized_structures.append(adslab)
 
         slab_key = slab_key_for(adslab)
@@ -61,22 +71,34 @@ def synthesize_adsorption_references(
             slab_records[slab_key] = slab_record
             synthesized_structures.append(slab_record)
 
+        reference_gas_record = gas_record
+        if reference_gas_record is None:
+            reference_gas_record = gas_records.get(structure_adsorbate_symbol)
+            if reference_gas_record is None:
+                reference_gas_record = build_gas_record(structure_adsorbate_symbol)
+                gas_records[structure_adsorbate_symbol] = reference_gas_record
+
         synthesized_references.append(
             ReferenceSet(
                 id=adslab.id,
                 slab=slab_record,
                 adslab=adslab,
-                gas=[gas_record],
+                gas=[reference_gas_record],
                 metadata={
                     **adslab.metadata,
                     "reference_transform": "structural_references",
-                    "adsorbate": adsorbate_symbol,
+                    "adsorbate": structure_adsorbate_symbol,
                 },
             )
         )
 
-    if synthesized_references and gas_record.id not in {record.id for record in synthesized_structures}:
-        synthesized_structures.append(gas_record)
+    if synthesized_references:
+        existing_ids = {record.id for record in synthesized_structures}
+        for reference_gas_record in gas_records.values():
+            if reference_gas_record.id not in existing_ids:
+                synthesized_structures.append(reference_gas_record)
+        if gas_record is not None and gas_record.id not in existing_ids:
+            synthesized_structures.append(gas_record)
 
     return DatasetBundle(
         name=bundle.name,
@@ -144,21 +166,36 @@ def _normalized_adslab(structure: StructureRecord, *, adsorbate_symbol: str) -> 
 def _annotated_adsorption_structure(
     structure: StructureRecord,
     *,
-    adsorbate_symbol: str,
+    adsorbate_symbol: str | None,
     structure_kind: str,
 ) -> StructureRecord:
     symbols = structure.symbols
     if symbols is None:
         raise ValueError(f"Structure '{structure.id}' is missing symbols")
-    adsorbate_indices = [
-        index for index, symbol in enumerate(symbols) if symbol == adsorbate_symbol
-    ]
-    if len(adsorbate_indices) != 1:
-        raise ValueError(
-            f"Structure '{structure.id}' must contain exactly one {adsorbate_symbol} atom"
+    positions = structure.positions
+    if adsorbate_symbol is None:
+        if positions is None:
+            raise ValueError(
+                f"Structure '{structure.id}' is missing positions for adsorbate inference"
+            )
+        adsorbate_index = max(
+            range(len(symbols)),
+            key=lambda index: (positions[index][2], index),
         )
+        inferred_adsorbate_symbol = symbols[adsorbate_index]
+        adsorbate_indices = [adsorbate_index]
+    else:
+        adsorbate_indices = [
+            index for index, symbol in enumerate(symbols) if symbol == adsorbate_symbol
+        ]
+        if len(adsorbate_indices) != 1:
+            raise ValueError(
+                f"Structure '{structure.id}' must contain exactly one {adsorbate_symbol} atom"
+            )
+        inferred_adsorbate_symbol = adsorbate_symbol
     metadata = structure.metadata.copy()
     metadata["adsorbate_indices"] = adsorbate_indices
+    metadata["adsorbate_symbol"] = inferred_adsorbate_symbol
     return replace(
         structure,
         kind=structure_kind,
@@ -199,6 +236,32 @@ def _adsorbate_indices(structure: StructureRecord) -> list[int]:
     if not isinstance(indices, list) or not all(isinstance(index, int) for index in indices):
         raise ValueError(f"Adslab '{structure.id}' is missing metadata['adsorbate_indices']")
     return indices
+
+
+def _resolved_adsorbate_symbol(
+    structure: StructureRecord,
+    *,
+    adsorbate_symbol: str | None,
+) -> str:
+    if adsorbate_symbol is not None:
+        return adsorbate_symbol
+    inferred = structure.metadata.get("adsorbate_symbol")
+    if isinstance(inferred, str) and inferred:
+        return inferred
+    symbols = structure.symbols
+    indices = structure.metadata.get("adsorbate_indices")
+    if (
+        symbols is not None
+        and isinstance(indices, list)
+        and len(indices) == 1
+        and isinstance(indices[0], int)
+    ):
+        return symbols[indices[0]]
+    raise ValueError(f"Adslab '{structure.id}' is missing metadata['adsorbate_symbol']")
+
+
+def _default_gas_record_builder(adsorbate_symbol: str) -> StructureRecord:
+    return build_gas_reference_record(formula=f"{adsorbate_symbol}2")
 
 
 def _require_structure_geometry(structure: StructureRecord) -> None:

@@ -12,26 +12,31 @@ from moira.ingest.transforms.structural_references import (
 
 
 class StructuralReferencesTransformTest(unittest.TestCase):
-    def test_annotation_infers_adsorbate_indices_for_elemental_adsorption(self) -> None:
+    def test_annotation_infers_adsorbate_from_topmost_atom(self) -> None:
         bundle = DatasetBundle(
             name="demo",
             structures=[
                 StructureRecord(
                     id="row-1",
                     symbols=["Pt", "Pt", "N"],
+                    positions=[
+                        (0.0, 0.0, 0.0),
+                        (1.5, 0.0, 0.0),
+                        (0.75, 0.75, 1.2),
+                    ],
                 )
             ],
         )
 
         annotated = annotate_elemental_adsorption_bundle(
             bundle,
-            adsorbate_symbol="N",
             structure_kind="adslab",
         )
 
         structure = annotated.structures[0]
         self.assertEqual(structure.kind, "adslab")
         self.assertEqual(structure.metadata["adsorbate_indices"], [2])
+        self.assertEqual(structure.metadata["adsorbate_symbol"], "N")
 
     def test_synthesizes_references_from_adslab_geometry(self) -> None:
         adslab_positions = [
@@ -64,7 +69,6 @@ class StructuralReferencesTransformTest(unittest.TestCase):
 
         transformed = synthesize_adsorption_references(
             bundle,
-            adsorbate_symbol="N",
             gas_record=gas_record,
         )
 
@@ -145,7 +149,6 @@ class StructuralReferencesTransformTest(unittest.TestCase):
         ):
             synthesize_adsorption_references(
                 bundle,
-                adsorbate_symbol="N",
                 gas_record=build_gas_reference_record(
                     formula="N2",
                 ),

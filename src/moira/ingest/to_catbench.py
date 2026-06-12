@@ -25,17 +25,18 @@ def load_dataset(cfg) -> DatasetBundle:
             source,
             dataset_name=dataset_name,
         )
-    if profile == "elemental_n_ase_db":
-        return load_elemental_n_ase_db_dataset(
+    if profile in {"elemental_adsorption_ase_db", "elemental_n_ase_db"}:
+        return load_elemental_ase_db_dataset(
             source,
             dataset_name=dataset_name,
         )
     raise ValueError(f"Unsupported ingest.profile: {profile}")
 
 
-def load_elemental_n_ase_db_dataset(
+def load_elemental_ase_db_dataset(
     source: Path,
     *,
+    adsorbate_symbol: str | None = None,
     dataset_name: str | None = None,
     row_limit: int | None = None,
 ) -> DatasetBundle:
@@ -46,17 +47,17 @@ def load_elemental_n_ase_db_dataset(
     )
     annotated = annotate_elemental_adsorption_bundle(
         bundle,
-        adsorbate_symbol="N",
+        adsorbate_symbol=adsorbate_symbol,
         structure_kind="adslab",
     )
     synthesized = synthesize_adsorption_references(
         annotated,
-        adsorbate_symbol="N",
-        gas_record=build_gas_reference_record(
-            formula="N2",
+        adsorbate_symbol=adsorbate_symbol,
+        gas_record=None if adsorbate_symbol is None else build_gas_reference_record(
+            formula=f"{adsorbate_symbol}2",
         ),
     )
-    return _annotate_elemental_n_catbench_layout(synthesized)
+    return _annotate_elemental_catbench_layout(synthesized)
 
 
 def build_coefficients(cfg, bundle: DatasetBundle) -> dict[str, dict[str, int | float]]:
@@ -83,7 +84,7 @@ def write_dataset(cfg, *, bundle: DatasetBundle, coeff_setting: dict[str, dict[s
     )
 
 
-def _annotate_elemental_n_catbench_layout(bundle: DatasetBundle) -> DatasetBundle:
+def _annotate_elemental_catbench_layout(bundle: DatasetBundle) -> DatasetBundle:
     for reference in bundle.references:
         surface_name = reference.id.replace(":", "_")
         adsorbate_name = str(reference.metadata.get("adsorbate", "adsorbate"))

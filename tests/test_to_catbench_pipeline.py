@@ -4,11 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from ase import Atoms
+from ase.db import connect
+
 from moira.ingest.models import StructureRecord
 from moira.ingest.to_catbench import (
     build_coefficients,
     load_dataset,
-    load_elemental_n_ase_db_dataset,
+    load_elemental_ase_db_dataset,
     write_dataset,
 )
 
@@ -26,8 +29,9 @@ class ToCatbenchPipelineTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
             dest = root / "catbench"
-            bundle = load_elemental_n_ase_db_dataset(
+            bundle = load_elemental_ase_db_dataset(
                 db_path,
+                adsorbate_symbol="N",
                 dataset_name="demo",
                 row_limit=1,
             )
@@ -78,12 +82,67 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             self.assertFalse((dest / "gas" / "N2gas" / "OSZICAR").exists())
             preprocess.assert_not_called()
 
+    def test_generic_elemental_adsorption_profile_supports_mixed_adsorbates(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            db_path = Path(tmpdir) / "mixed.db"
+            with connect(db_path) as db:
+                db.write(
+                    Atoms(
+                        symbols=["Pt", "Pt", "N"],
+                        positions=[
+                            (0.0, 0.0, 0.0),
+                            (1.5, 0.0, 0.0),
+                            (0.75, 0.75, 1.2),
+                        ],
+                        cell=[
+                            (5.0, 0.0, 0.0),
+                            (0.0, 5.0, 0.0),
+                            (0.0, 0.0, 15.0),
+                        ],
+                        pbc=(True, True, True),
+                    )
+                )
+                db.write(
+                    Atoms(
+                        symbols=["Pt", "Pt", "O"],
+                        positions=[
+                            (0.0, 0.0, 0.0),
+                            (1.5, 0.0, 0.0),
+                            (0.75, 0.75, 1.1),
+                        ],
+                        cell=[
+                            (5.0, 0.0, 0.0),
+                            (0.0, 5.0, 0.0),
+                            (0.0, 0.0, 15.0),
+                        ],
+                        pbc=(True, True, True),
+                    )
+                )
+
+            cfg = SimpleNamespace(
+                ingest=SimpleNamespace(
+                    source=db_path,
+                    dataset_name="demo",
+                    profile="elemental_adsorption_ase_db",
+                )
+            )
+            bundle = load_dataset(cfg)
+
+            records_by_id = {record.id: record for record in bundle.structures}
+            self.assertIn("gas:N2", records_by_id)
+            self.assertIn("gas:O2", records_by_id)
+            self.assertEqual(
+                sorted(reference.metadata["adsorbate"] for reference in bundle.references),
+                ["N", "O"],
+            )
+
     def test_end_to_end_elemental_n_ase_db_fails_when_geometry_is_missing(self) -> None:
         db_path = Path("data/screening/trimetallic_n.db")
         self.assertTrue(db_path.is_file())
 
-        bundle = load_elemental_n_ase_db_dataset(
+        bundle = load_elemental_ase_db_dataset(
             db_path,
+            adsorbate_symbol="N",
             dataset_name="demo",
             row_limit=1,
         )
@@ -144,11 +203,11 @@ class ToCatbenchPipelineTest(unittest.TestCase):
 
     def test_unified_pipeline_rejects_unknown_profile(self) -> None:
         cfg = SimpleNamespace(
-            ingest=SimpleNamespace(
-                source=Path("ignored"),
-                dataset_name="demo",
-                profile="unknown",
-            )
+                ingest=SimpleNamespace(
+                    source=Path("ignored"),
+                    dataset_name="demo",
+                    profile="unknown",
+                )
         )
 
         with self.assertRaisesRegex(ValueError, "Unsupported ingest.profile: unknown"):
