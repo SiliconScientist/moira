@@ -36,18 +36,37 @@ Most model fields are intentionally optional so partial datasets can still load.
 
 Transforms and writers should only require the fields they actually consume.
 
+## Reference Completeness
+
+There are two distinct completeness modes for emitted references:
+
+- geometry-complete: emitted `ReferenceSet` entries must point to `slab`, `adslab`, and `gas` structures with usable geometry
+- energy-optional: those same structures may still have `energy_ev=None`
+
+In other words:
+
+- emitted references must have geometries
+- energies may be absent
+
+This is the supported partial-energy ingest mode for structural datasets.
+
 ## CatBench Writer Requirements
 
 The CatBench writer lives in [writers/catbench.py](/Users/averyhill/github/moira/src/moira/ingest/writers/catbench.py:1).
 
 It requires:
 
-- a `DatasetBundle` whose materialized structures have `source_path`
+- a `DatasetBundle` whose emitted references are geometry-complete
 - `StructureRecord.metadata["catbench_relpath"]` for each structure that should be copied
 - a CatBench coefficient map such as the output of [transforms/catbench.py](/Users/averyhill/github/moira/src/moira/ingest/transforms/catbench.py:1)
 - a destination dataset folder, output directory, and output dataset name
 
-It does not require reaction records, atomic positions, or a fully populated bundle.
+It supports two output modes:
+
+- full-energy mode: structures have geometry plus energies, so the writer can materialize VASP-style inputs and run CatBench preprocessing
+- partial-energy mode: structures have geometry but may omit energies, so the writer still materializes the dataset layout without inventing missing energy labels
+
+It does not require reaction records or a fully populated bundle.
 
 ## Expected Plug Points
 
