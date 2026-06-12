@@ -1,13 +1,11 @@
-import re
 import shutil
-from typing import Dict
 import yaml
 from collections import defaultdict
 from pathlib import Path
 from catbench.adsorption.data import vasp as catbench_vasp
 
 from moira.config import get_config
-from moira.ingest.stoichiometry import solve_stoichiometry
+from moira.ingest.catbench_coefficients import build_coeff_setting
 
 
 def tag_to_ads(tag, tag_map):
@@ -55,153 +53,6 @@ def read_E0_from_OSZICAR(file_path):
         raise RuntimeError(
             f"An error occurred while reading the file '{file_path}': {str(e)}"
         )
-
-
-_TOKEN = re.compile(
-    r"""
-    (?P<elem>[A-Z][a-z]?) |      # Element symbol, e.g. C, O, Au
-    (?P<num>\d+)          |      # Number
-    (?P<lpar>\()          |      # (
-    (?P<rpar>\))          |      # )
-    (?P<other>.)                 # any other single char
-""",
-    re.VERBOSE,
-)
-
-
-def formula_to_composition(formula: str) -> dict[str, int]:
-    """
-    Convert a chemical formula string to an element->count dict.
-
-    Examples:
-      "CH3OH" -> {"C":1,"H":4,"O":1}
-      "CH3(CH2)2OH" -> {"C":3,"H":8,"O":1}
-      "*CH3OH" -> {"C":1,"H":4,"O":1}
-      "OCH3Au" -> {"O":1,"C":1,"H":3,"Au":1}
-    """
-    # Strip decorations that aren’t chemistry
-    s = formula.strip()
-    s = s.replace("*", "")
-    s = re.sub(r"[\s\-_]", "", s)
-
-    # Stack of composition dicts for parentheses
-    stack: list[defaultdict[str, int]] = [defaultdict(int)]
-    pending_elem: str | None = None
-
-    tokens = list(_TOKEN.finditer(s))
-    i = 0
-    while i < len(tokens):
-        t = tokens[i]
-        kind = t.lastgroup
-        val = t.group()
-
-        if kind == "elem":
-            pending_elem = val
-            # default count is 1 unless a number follows
-            # (we’ll apply after seeing next token)
-            i += 1
-            # if next token is a number, consume it
-            count = 1
-            if i < len(tokens) and tokens[i].lastgroup == "num":
-                count = int(tokens[i].group())
-                i += 1
-            stack[-1][pending_elem] += count
-            pending_elem = None
-            continue
-
-        if kind == "lpar":
-            stack.append(defaultdict(int))
-            i += 1
-            continue
-
-        if kind == "rpar":
-            # pop group, apply multiplier if present
-            group = stack.pop()
-            i += 1
-            mult = 1
-            if i < len(tokens) and tokens[i].lastgroup == "num":
-                mult = int(tokens[i].group())
-                i += 1
-            for e, c in group.items():
-                stack[-1][e] += c * mult
-            continue
-
-        if kind == "num":
-            # A naked number without a preceding element or ')'
-            # means the formula is in a form we don't support.
-            raise ValueError(f"Unexpected number '{val}' in formula '{formula}'")
-
-        # Ignore other characters (charges, dots, etc.) for now
-        i += 1
-
-    if len(stack) != 1:
-        raise ValueError(f"Unbalanced parentheses in formula '{formula}'")
-
-    return dict(stack[0])
-
-
-def clean_coeff(x, *, eps: float = 1e-12):
-    """
-    Canonicalize coefficients for serialization:
-      - clamp tiny values to +0.0
-      - remove negative zero
-      - optionally return int if essentially integer
-    """
-    xf = float(x)
-
-    # clamp tiny values to 0
-    if abs(xf) < eps:
-        return 0  # gives "0" in JSON (nice)
-
-    # snap near-integers (optional, but usually nice for stoich)
-    xr = round(xf)
-    if abs(xf - xr) < eps:
-        return int(xr)
-
-    return xf
-
-
-def build_coeff_setting(cfg, tag_map: Path) -> Dict[str, dict]:
-    """
-    Returns:
-      coeff_setting[formula] = {
-          "slab": -1,
-          "adslab": 1,
-          "CH4gas": c_CH4,
-          "O2gas": c_O2,
-          "H2gas": c_H2,
-      }
-    """
-
-    coeff_setting: Dict[str, dict] = {}
-
-    for tag, formula in tag_map.items():
-        comp = formula_to_composition(formula)
-
-        # OPTIONAL: restrict to allowed elements
-        allowed = set(cfg.ingest.stoich.elements)
-        extra = set(comp) - allowed
-        if extra:
-            raise ValueError(
-                f"Tag {tag} -> '{formula}' includes elements {sorted(extra)} "
-                f"not in cfg.ingest.stoich.elements={cfg.ingest.stoich.elements}"
-            )
-
-        # coeffs is aligned with cfg.ingest.stoich.basis_species
-        coeffs = solve_stoichiometry(cfg, comp)  # e.g. [c1, c2, c3, ...]
-        basis = list(cfg.ingest.stoich.basis_species)  # e.g. ["CH4", "O2", "H2"]
-        gas_terms = {}
-        for spc, c in zip(basis, coeffs):
-            v = clean_coeff(-c)
-            if v != 0:
-                gas_terms[f"{spc}gas"] = v
-
-        coeff_setting[formula] = {
-            "slab": -1,
-            "adslab": 1,
-            **gas_terms,
-        }
-    return coeff_setting
 
 
 def main():
@@ -295,7 +146,11 @@ def main():
                 dst_path = system_dir / ads / str(config_index)
                 copy_selected_files(src_path, dst_path)
 
-    coeff_setting = build_coeff_setting(cfg, tag_map)
+    coeff_setting = build_coeff_setting(
+        tag_map=tag_map,
+        elements=list(cfg.ingest.stoich.elements),
+        basis_species=list(cfg.ingest.stoich.basis_species),
+    )
 
     # CatBench's VASP preprocessor uses one parameter for both:
     # 1) input dataset directory traversal, and 2) output JSON filename stem.
