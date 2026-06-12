@@ -9,6 +9,30 @@ from moira.ingest.models import DatasetBundle, ReferenceSet, StructureRecord, Ve
 from moira.ingest.site_constraints import strip_adsorbate_from_adslab
 
 
+def annotate_elemental_adsorption_bundle(
+    bundle: DatasetBundle,
+    *,
+    adsorbate_symbol: str,
+    structure_kind: str = "adslab",
+) -> DatasetBundle:
+    structures = [
+        _annotated_adsorption_structure(
+            structure,
+            adsorbate_symbol=adsorbate_symbol,
+            structure_kind=structure_kind,
+        )
+        for structure in bundle.structures
+    ]
+    return DatasetBundle(
+        name=bundle.name,
+        source=bundle.source,
+        structures=structures,
+        references=list(bundle.references),
+        reactions=list(bundle.reactions),
+        metadata=dict(bundle.metadata),
+    )
+
+
 def synthesize_adsorption_references(
     bundle: DatasetBundle,
     *,
@@ -109,6 +133,31 @@ def _normalized_adslab(structure: StructureRecord, *, adsorbate_symbol: str) -> 
         structure,
         label=structure.label or adsorbate_symbol,
         formula=structure.formula or f"*{adsorbate_symbol}",
+        metadata=metadata,
+    )
+
+
+def _annotated_adsorption_structure(
+    structure: StructureRecord,
+    *,
+    adsorbate_symbol: str,
+    structure_kind: str,
+) -> StructureRecord:
+    symbols = structure.symbols
+    if symbols is None:
+        raise ValueError(f"Structure '{structure.id}' is missing symbols")
+    adsorbate_indices = [
+        index for index, symbol in enumerate(symbols) if symbol == adsorbate_symbol
+    ]
+    if len(adsorbate_indices) != 1:
+        raise ValueError(
+            f"Structure '{structure.id}' must contain exactly one {adsorbate_symbol} atom"
+        )
+    metadata = structure.metadata.copy()
+    metadata["adsorbate_indices"] = adsorbate_indices
+    return replace(
+        structure,
+        kind=structure_kind,
         metadata=metadata,
     )
 

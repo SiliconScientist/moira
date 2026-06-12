@@ -13,6 +13,7 @@ class StoichConfig(BaseModel):
 class IngestConfig(BaseModel):
     source: Path
     dataset_name: str
+    profile: str = "vasp_mapping"
     catbench_folder: Optional[Path] = None
     stoich: StoichConfig
 

@@ -3,12 +3,34 @@ import unittest
 from moira.ingest.models import DatasetBundle, StructureRecord
 from moira.ingest.transforms.catbench import build_catbench_coefficients
 from moira.ingest.transforms.structural_references import (
+    annotate_elemental_adsorption_bundle,
     build_diatomic_gas_record,
     synthesize_adsorption_references,
 )
 
 
 class StructuralReferencesTransformTest(unittest.TestCase):
+    def test_annotation_infers_adsorbate_indices_for_elemental_adsorption(self) -> None:
+        bundle = DatasetBundle(
+            name="demo",
+            structures=[
+                StructureRecord(
+                    id="row-1",
+                    symbols=["Pt", "Pt", "N"],
+                )
+            ],
+        )
+
+        annotated = annotate_elemental_adsorption_bundle(
+            bundle,
+            adsorbate_symbol="N",
+            structure_kind="adslab",
+        )
+
+        structure = annotated.structures[0]
+        self.assertEqual(structure.kind, "adslab")
+        self.assertEqual(structure.metadata["adsorbate_indices"], [2])
+
     def test_synthesizes_references_from_adslab_geometry(self) -> None:
         adslab_positions = [
             (0.0, 0.0, 0.0),
