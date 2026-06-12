@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -80,6 +81,15 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             self.assertFalse((dest / "trimetallic_n_1" / "slab" / "OSZICAR").exists())
             self.assertFalse((dest / "trimetallic_n_1" / "N" / "1" / "OSZICAR").exists())
             self.assertFalse((dest / "gas" / "N2gas" / "OSZICAR").exists())
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(sorted(payload), ["trimetallic_n_1_N"])
+            entry = payload["trimetallic_n_1_N"]
+            self.assertIsNone(entry["ref_ads_eng"])
+            self.assertEqual(entry["adsorbate_indices"], [36])
+            self.assertEqual(sorted(entry["raw"]), ["N2gas", "Nstar", "star"])
+            self.assertIsNone(entry["raw"]["star"]["energy_ref"])
+            self.assertIsNone(entry["raw"]["Nstar"]["energy_ref"])
+            self.assertIsNone(entry["raw"]["N2gas"]["energy_ref"])
             preprocess.assert_not_called()
 
     def test_generic_elemental_adsorption_profile_supports_mixed_adsorbates(self) -> None:

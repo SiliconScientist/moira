@@ -1,5 +1,6 @@
 import tempfile
 import unittest
+import json
 from pathlib import Path
 from unittest.mock import patch
 
@@ -84,6 +85,19 @@ class CatbenchWriterTest(unittest.TestCase):
             self.assertFalse((dest / "gas" / "N2gas" / "OSZICAR").exists())
             self.assertFalse((dest / "surface-1" / "slab" / "OSZICAR").exists())
             self.assertFalse((dest / "surface-1" / "N" / "1" / "OSZICAR").exists())
+            payload = json.loads(output_path.read_text(encoding="utf-8"))
+            self.assertEqual(sorted(payload), ["surface-1_N_1_N"])
+            entry = payload["surface-1_N_1_N"]
+            self.assertIsNone(entry["ref_ads_eng"])
+            self.assertEqual(entry["adsorbate_indices"], [2])
+            self.assertEqual(
+                sorted(entry["raw"]),
+                ["N2gas", "Nstar", "star"],
+            )
+            self.assertIsNone(entry["raw"]["star"]["energy_ref"])
+            self.assertIsNone(entry["raw"]["Nstar"]["energy_ref"])
+            self.assertIsNone(entry["raw"]["N2gas"]["energy_ref"])
+            self.assertIn("atoms_json", entry["raw"]["star"])
             preprocess.assert_not_called()
 
     def test_write_catbench_dataset_allows_referenced_geometries_without_energies(self) -> None:

@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import shutil
 from pathlib import Path
+from typing import Any
 
 from ase import Atoms
 from ase.io import write
 from catbench.adsorption.data import vasp as catbench_vasp
+from catbench.utils.data_utils import detect_adsorbate_indices, save_catbench_json
 
 from moira.ingest.models import DatasetBundle, StructureRecord
 
@@ -97,6 +99,11 @@ def write_catbench_dataset(
     output_path = output_dir / f"{output_name}_adsorption.json"
 
     if not _has_materialized_reference_energies(bundle, dest):
+        _write_partial_energy_catbench_json(
+            bundle=bundle,
+            coeff_setting=coeff_setting,
+            output_path=output_path,
+        )
         return output_path
 
     catbench_vasp.get_raw_data_directory = lambda: str(output_dir)
@@ -117,3 +124,105 @@ def _has_materialized_reference_energies(bundle: DatasetBundle, dest: Path) -> b
             if not (dest / relpath / "OSZICAR").is_file():
                 return False
     return True
+
+
+def _write_partial_energy_catbench_json(
+    *,
+    bundle: DatasetBundle,
+    coeff_setting: dict[str, dict[str, int | float]],
+    output_path: Path,
+) -> None:
+    data: dict[str, Any] = {}
+    for reference in bundle.references:
+        if reference.adslab is None or reference.slab is None:
+            continue
+        coeff = _reference_coefficients(reference, coeff_setting)
+        adsorbate_name = _reference_adsorbate_name(reference)
+        surface_name = reference.id.replace(":", "_")
+        reaction_key = f"{surface_name}_{adsorbate_name}"
+        raw = {
+            "star": {
+                "stoi": coeff["slab"],
+                "atoms": _atoms_from_structure(reference.slab),
+                "energy_ref": reference.slab.energy_ev,
+            },
+            f"{adsorbate_name}star": {
+                "stoi": coeff["adslab"],
+                "atoms": _atoms_from_structure(reference.adslab),
+                "energy_ref": reference.adslab.energy_ev,
+            },
+        }
+        for gas in reference.gas:
+            gas_key = f"{gas.formula or gas.label or gas.id.removeprefix('gas:')}gas"
+            if gas_key not in coeff:
+                continue
+            raw[gas_key] = {
+                "stoi": coeff[gas_key],
+                "atoms": _atoms_from_structure(gas),
+                "energy_ref": gas.energy_ev,
+            }
+
+        adsorbate_indices = _reference_adsorbate_indices(reference)
+        entry: dict[str, Any] = {
+            "raw": raw,
+            "ref_ads_eng": _reference_energy(raw),
+        }
+        if isinstance(adsorbate_indices, list):
+            entry["adsorbate_indices"] = adsorbate_indices
+        data[reaction_key] = entry
+
+    save_catbench_json(data, str(output_path))
+
+
+def _reference_coefficients(
+    reference,
+    coeff_setting: dict[str, dict[str, int | float]],
+) -> dict[str, int | float]:
+    if reference.adslab is None or reference.adslab.formula is None:
+        raise ValueError(f"ReferenceSet '{reference.id}' is missing adslab formula")
+    if reference.adslab.formula not in coeff_setting:
+        raise ValueError(
+            f"Missing CatBench coefficients for reference formula '{reference.adslab.formula}'"
+        )
+    return coeff_setting[reference.adslab.formula]
+
+
+def _reference_energy(raw: dict[str, dict[str, Any]]) -> float | None:
+    terms: list[float] = []
+    for entry in raw.values():
+        energy_ref = entry["energy_ref"]
+        if energy_ref is None:
+            return None
+        terms.append(float(energy_ref) * float(entry["stoi"]))
+    return sum(terms)
+
+
+def _reference_adsorbate_name(reference) -> str:
+    explicit = reference.metadata.get("adsorbate")
+    if isinstance(explicit, str) and explicit:
+        return explicit
+    adslab = reference.adslab
+    if adslab is None:
+        return "adsorbate"
+    explicit = adslab.metadata.get("adsorbate")
+    if isinstance(explicit, str) and explicit:
+        return explicit
+    if isinstance(adslab.formula, str) and adslab.formula.startswith("*"):
+        return adslab.formula.removeprefix("*")
+    if isinstance(adslab.label, str) and adslab.label:
+        return adslab.label
+    return "adsorbate"
+
+
+def _reference_adsorbate_indices(reference) -> list[int] | None:
+    adslab = reference.adslab
+    slab = reference.slab
+    if adslab is None or slab is None:
+        return None
+    explicit = adslab.metadata.get("adsorbate_indices")
+    if isinstance(explicit, list) and all(isinstance(index, int) for index in explicit):
+        return explicit
+    return detect_adsorbate_indices(
+        _atoms_from_structure(slab),
+        _atoms_from_structure(adslab),
+    )
