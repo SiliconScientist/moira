@@ -15,6 +15,25 @@ DEFAULT_MLIP_NAME = "uma-s-1p1"
 DEFAULT_TASK_NAME = "oc20"
 
 
+def _resolve_checkpoint_path(checkpoint: str, config_path: str) -> str:
+    checkpoint_path = Path(checkpoint)
+    if (
+        not checkpoint_path.is_absolute()
+        and any(sep in checkpoint for sep in ("/", "\\"))
+    ):
+        checkpoint_path = (Path(config_path).parent / checkpoint_path).resolve()
+
+    if checkpoint_path.exists():
+        return str(checkpoint_path)
+
+    raise FileNotFoundError(
+        "Legacy UMA requires mlip.rootstock.models.uma.checkpoint to point to an "
+        f"existing checkpoint file, but got {checkpoint!r}. "
+        "If you intended to use the Rootstock model alias "
+        "('uma-s-1p1'), set mlip.adapter_backend = 'rootstock'."
+    )
+
+
 def run(
     *,
     model: str,
@@ -38,12 +57,7 @@ def run(
     resolved_model_path = model_path or spec.get("checkpoint")
     if resolved_model_path is None:
         raise KeyError(f"mlip.rootstock.models.{model}.checkpoint is required")
-    checkpoint_path = Path(resolved_model_path)
-    if (
-        not checkpoint_path.is_absolute()
-        and any(sep in resolved_model_path for sep in ("/", "\\"))
-    ):
-        resolved_model_path = str((Path(config_path).parent / checkpoint_path).resolve())
+    resolved_model_path = _resolve_checkpoint_path(resolved_model_path, config_path)
     mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
     task_name = str(metadata.get("task_name", DEFAULT_TASK_NAME))
 

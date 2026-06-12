@@ -70,6 +70,9 @@ modal = "mpa"
 
 [mlip.rootstock.models.uma]
 model = "uma"
+# For `adapter_backend = "rootstock"`, this can be a Rootstock alias like
+# "uma-s-1p1". For `adapter_backend = "legacy"`, this must be a real checkpoint
+# file path instead.
 checkpoint = "uma-s-1p1"
 mlip_name = "uma-s-1p1"
 

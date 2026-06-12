@@ -281,6 +281,46 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
 
+
+class LegacyUmaAdapterTests(unittest.TestCase):
+    def test_legacy_uma_rejects_rootstock_alias_checkpoint(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.uma_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_adsorption.AdsorptionCalculation = object
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_fairchem = ModuleType("fairchem")
+        fake_fairchem_core = ModuleType("fairchem.core")
+        fake_fairchem_core.FAIRChemCalculator = object
+        fake_units = ModuleType("fairchem.core.units")
+        fake_mlip_unit = ModuleType("fairchem.core.units.mlip_unit")
+        fake_mlip_unit.load_predict_unit = Mock()
+        fake_units.mlip_unit = fake_mlip_unit
+        fake_fairchem_core.units = fake_units
+        fake_fairchem.core = fake_fairchem_core
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "fairchem": fake_fairchem,
+                "fairchem.core": fake_fairchem_core,
+                "fairchem.core.units": fake_units,
+                "fairchem.core.units.mlip_unit": fake_mlip_unit,
+            },
+        ):
+            from moira.adapters.legacy.uma_adapter import _resolve_checkpoint_path
+
+            with TemporaryDirectory() as tmp_dir:
+                config_path = Path(tmp_dir) / "mlip.toml"
+                with self.assertRaisesRegex(
+                    FileNotFoundError,
+                    "Legacy UMA requires .*existing checkpoint file.*rootstock",
+                ):
+                    _resolve_checkpoint_path("uma-s-1p1", str(config_path))
+
     def test_run_one_task_reexecs_into_legacy_model_python(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
