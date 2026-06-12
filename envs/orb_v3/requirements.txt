@@ -1,1 +1,4 @@
 orb_models==0.5.5
+ase==3.26.0
+dm-tree==0.1.8
+torch==2.6.0

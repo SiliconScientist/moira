@@ -6,7 +6,7 @@ from pathlib import Path
 
 from catbench.adsorption import AdsorptionCalculation
 from orb_models.forcefield import pretrained
-from orb_models.forcefield.inference.calculator import ORBCalculator
+from orb_models.forcefield.calculator import ORBCalculator
 
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.registry import load_config
@@ -45,14 +45,12 @@ def run(
 
     calculators = []
     for _ in range(n_calcs):
-        orbff, atoms_adapter = pretrained.orb_v3_conservative_inf_omat(
+        orbff = pretrained.orb_v3_conservative_inf_omat(
             weights_path=resolved_model_path,
             device=device,
             precision="float32-high",
         )
-        calculators.append(
-            ORBCalculator(model=orbff, atoms_adapter=atoms_adapter, device=device)
-        )
+        calculators.append(ORBCalculator(model=orbff, device=device))
 
     with patch_adsorption_paths(
         dataset_path=dataset_path,
