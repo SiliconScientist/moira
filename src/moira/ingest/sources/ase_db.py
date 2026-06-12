@@ -11,13 +11,14 @@ def load_ase_db_bundle(
     source: Path,
     *,
     dataset_name: str | None = None,
+    row_limit: int | None = None,
 ) -> DatasetBundle:
     if not source.is_file():
         raise FileNotFoundError(f"ASE DB source does not exist: {source}")
 
     structures: list[StructureRecord] = []
     with connect(source) as db:
-        for row in db.select():
+        for row in db.select(limit=row_limit):
             structures.append(_structure_from_row(row=row, source=source))
 
     return DatasetBundle(

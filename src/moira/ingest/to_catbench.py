@@ -37,8 +37,13 @@ def load_elemental_n_ase_db_dataset(
     source: Path,
     *,
     dataset_name: str | None = None,
+    row_limit: int | None = None,
 ) -> DatasetBundle:
-    bundle = load_ase_db_bundle(source, dataset_name=dataset_name)
+    bundle = load_ase_db_bundle(
+        source,
+        dataset_name=dataset_name,
+        row_limit=row_limit,
+    )
     annotated = annotate_elemental_adsorption_bundle(
         bundle,
         adsorbate_symbol="N",

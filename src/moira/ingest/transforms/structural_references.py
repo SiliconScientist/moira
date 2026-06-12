@@ -131,10 +131,12 @@ def _normalized_adslab(structure: StructureRecord, *, adsorbate_symbol: str) -> 
 
     metadata = structure.metadata.copy()
     metadata["adsorbate"] = adsorbate_symbol
+    if structure.formula is not None:
+        metadata["source_formula"] = structure.formula
     return replace(
         structure,
         label=structure.label or adsorbate_symbol,
-        formula=structure.formula or f"*{adsorbate_symbol}",
+        formula=f"*{adsorbate_symbol}",
         metadata=metadata,
     )
 
