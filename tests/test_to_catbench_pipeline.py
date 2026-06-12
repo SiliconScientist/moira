@@ -2,11 +2,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from ase import Atoms
 from ase.db import connect
 
-from moira.ingest.to_catbench import load_dataset
+from moira.ingest.to_catbench import load_dataset, write_dataset
 
 
 def _write_text(path: Path, content: str) -> None:
@@ -64,6 +65,66 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             self.assertIs(reference.adslab, records_by_id["trimetallic_n:1"])
             self.assertIs(reference.slab, records_by_id["trimetallic_n:1:slab"])
             self.assertEqual(reference.gas, [records_by_id["gas:N2"]])
+            self.assertEqual(
+                records_by_id["trimetallic_n:1"].metadata["catbench_relpath"],
+                "trimetallic_n_1/N/1",
+            )
+            self.assertEqual(
+                records_by_id["trimetallic_n:1:slab"].metadata["catbench_relpath"],
+                "trimetallic_n_1/slab",
+            )
+            self.assertEqual(
+                records_by_id["gas:N2"].metadata["catbench_relpath"],
+                "gas/N2gas",
+            )
+
+    def test_unified_pipeline_writes_elemental_n_layout_without_preprocessing(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            db_path = root / "trimetallic_n.db"
+            dest = root / "catbench"
+            atoms = Atoms(
+                symbols=["Pt", "Pt", "N"],
+                positions=[
+                    (0.0, 0.0, 0.0),
+                    (1.5, 0.0, 0.0),
+                    (0.75, 0.75, 1.2),
+                ],
+                cell=[
+                    (5.0, 0.0, 0.0),
+                    (0.0, 5.0, 0.0),
+                    (0.0, 0.0, 15.0),
+                ],
+                pbc=(True, True, True),
+            )
+            with connect(db_path) as db:
+                db.write(atoms)
+
+            cfg = SimpleNamespace(
+                ingest=SimpleNamespace(
+                    source=db_path,
+                    dataset_name="demo",
+                    profile="elemental_n_ase_db",
+                    catbench_folder=dest,
+                )
+            )
+            bundle = load_dataset(cfg)
+
+            with patch("moira.ingest.writers.catbench.catbench_vasp.vasp_preprocessing") as preprocess:
+                output_path = write_dataset(
+                    cfg,
+                    bundle=bundle,
+                    coeff_setting={"*N": {"slab": -1, "adslab": 1, "N2gas": -0.5}},
+                )
+
+            self.assertEqual(output_path.name, "demo_adsorption.json")
+            self.assertTrue((dest / "trimetallic_n_1" / "slab" / "CONTCAR").is_file())
+            self.assertTrue((dest / "trimetallic_n_1" / "N" / "1" / "CONTCAR").is_file())
+            self.assertTrue((dest / "gas" / "N2gas" / "CONTCAR").is_file())
+            self.assertFalse((dest / "trimetallic_n_1" / "slab" / "OSZICAR").exists())
+            self.assertFalse((dest / "trimetallic_n_1" / "N" / "1" / "OSZICAR").exists())
+            self.assertFalse((dest / "gas" / "N2gas" / "OSZICAR").exists())
+            preprocess.assert_not_called()
 
     def test_unified_pipeline_dispatches_vasp_mapping_profile(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

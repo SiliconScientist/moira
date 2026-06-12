@@ -13,6 +13,79 @@ def _write_text(path: Path, content: str) -> None:
 
 
 class CatbenchWriterTest(unittest.TestCase):
+    def test_write_catbench_dataset_materializes_inline_geometries_without_oszicars(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            dest = root / "dest"
+            output_dir = root / "raw"
+
+            gas = StructureRecord(
+                id="gas:N2",
+                kind="gas",
+                formula="N2",
+                symbols=["N", "N"],
+                positions=[(-0.55, 0.0, 0.0), (0.55, 0.0, 0.0)],
+                cell=[(12.0, 0.0, 0.0), (0.0, 12.0, 0.0), (0.0, 0.0, 12.0)],
+                pbc=(False, False, False),
+                energy_ev=None,
+                metadata={"catbench_relpath": "gas/N2gas"},
+            )
+            slab = StructureRecord(
+                id="surface-1:slab",
+                kind="slab",
+                symbols=["Pt", "Pt"],
+                positions=[(0.0, 0.0, 0.0), (1.5, 0.0, 0.0)],
+                cell=[(5.0, 0.0, 0.0), (0.0, 5.0, 0.0), (0.0, 0.0, 15.0)],
+                pbc=(True, True, True),
+                energy_ev=None,
+                metadata={"catbench_relpath": "surface-1/slab"},
+            )
+            adslab = StructureRecord(
+                id="surface-1:N:1",
+                kind="adslab",
+                formula="*N",
+                symbols=["Pt", "Pt", "N"],
+                positions=[
+                    (0.0, 0.0, 0.0),
+                    (1.5, 0.0, 0.0),
+                    (0.75, 0.75, 1.2),
+                ],
+                cell=[(5.0, 0.0, 0.0), (0.0, 5.0, 0.0), (0.0, 0.0, 15.0)],
+                pbc=(True, True, True),
+                energy_ev=None,
+                metadata={"catbench_relpath": "surface-1/N/1"},
+            )
+            bundle = DatasetBundle(
+                name="demo",
+                structures=[gas, slab, adslab],
+                references=[
+                    ReferenceSet(
+                        id=adslab.id,
+                        slab=slab,
+                        adslab=adslab,
+                        gas=[gas],
+                    )
+                ],
+            )
+
+            with patch("moira.ingest.writers.catbench.catbench_vasp.vasp_preprocessing") as preprocess:
+                output_path = write_catbench_dataset(
+                    bundle=bundle,
+                    dest=dest,
+                    coeff_setting={"*N": {"slab": -1, "adslab": 1, "N2gas": -0.5}},
+                    output_dir=output_dir,
+                    output_name="demo",
+                )
+
+            self.assertEqual(output_path, output_dir / "demo_adsorption.json")
+            self.assertTrue((dest / "gas" / "N2gas" / "CONTCAR").is_file())
+            self.assertTrue((dest / "surface-1" / "slab" / "CONTCAR").is_file())
+            self.assertTrue((dest / "surface-1" / "N" / "1" / "CONTCAR").is_file())
+            self.assertFalse((dest / "gas" / "N2gas" / "OSZICAR").exists())
+            self.assertFalse((dest / "surface-1" / "slab" / "OSZICAR").exists())
+            self.assertFalse((dest / "surface-1" / "N" / "1" / "OSZICAR").exists())
+            preprocess.assert_not_called()
+
     def test_write_catbench_dataset_allows_referenced_geometries_without_energies(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)

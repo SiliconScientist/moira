@@ -44,7 +44,7 @@ def load_elemental_n_ase_db_dataset(
         adsorbate_symbol="N",
         structure_kind="adslab",
     )
-    return synthesize_adsorption_references(
+    synthesized = synthesize_adsorption_references(
         annotated,
         adsorbate_symbol="N",
         gas_record=build_diatomic_gas_record(
@@ -53,6 +53,7 @@ def load_elemental_n_ase_db_dataset(
             bond_length=1.10,
         ),
     )
+    return _annotate_elemental_n_catbench_layout(synthesized)
 
 
 def build_coefficients(cfg, bundle: DatasetBundle) -> dict[str, dict[str, int | float]]:
@@ -77,6 +78,23 @@ def write_dataset(cfg, *, bundle: DatasetBundle, coeff_setting: dict[str, dict[s
         output_dir=output_dir,
         output_name=cfg.ingest.dataset_name,
     )
+
+
+def _annotate_elemental_n_catbench_layout(bundle: DatasetBundle) -> DatasetBundle:
+    for reference in bundle.references:
+        surface_name = reference.id.replace(":", "_")
+        adsorbate_name = str(reference.metadata.get("adsorbate", "adsorbate"))
+
+        if reference.slab is not None:
+            reference.slab.metadata["catbench_relpath"] = f"{surface_name}/slab"
+        if reference.adslab is not None:
+            reference.adslab.metadata["catbench_relpath"] = (
+                f"{surface_name}/{adsorbate_name}/1"
+            )
+        for gas in reference.gas:
+            gas_name = gas.formula or gas.label or gas.id.removeprefix("gas:")
+            gas.metadata["catbench_relpath"] = f"gas/{gas_name}gas"
+    return bundle
 
 
 def main():

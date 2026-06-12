@@ -11,13 +11,14 @@
 [ingest]
 source = "data/raw_vasp/systems"
 dataset_name = "example_dataset"
-profile = "vasp_mapping" # or "elemental_n_ase_db"
+profile = "vasp_mapping"         # or "elemental_n_ase_db"
 
 [ingest.stoich]
-elements = ["C", "O", "H"]
-basis_species = ["CH4", "O2", "H2"]
+elements = ["N", "C", "O", "H"]
+basis_species = ["N2", "CH4", "O2", "H2"]
 
 [ingest.stoich.basis_composition]
+N2 = { N = 2 }
 CH4 = { C = 1, H = 4 }
 O2 = { O = 2 }
 H2 = { H = 2 }
