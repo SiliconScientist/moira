@@ -4,6 +4,7 @@ from dataclasses import replace
 from typing import Callable
 
 from ase import Atoms
+from ase.build import molecule
 
 from moira.ingest.models import DatasetBundle, ReferenceSet, StructureRecord, Vector3
 from moira.ingest.site_constraints import strip_adsorbate_from_adslab
@@ -87,23 +88,24 @@ def synthesize_adsorption_references(
     )
 
 
-def build_diatomic_gas_record(
+def build_gas_reference_record(
     *,
-    symbol: str,
     formula: str,
-    bond_length: float,
     cell_size: float = 12.0,
 ) -> StructureRecord:
-    half_bond = bond_length / 2.0
+    atoms = molecule(formula)
+    atoms.set_cell((cell_size, cell_size, cell_size))
+    atoms.center()
+    atoms.pbc = (False, False, False)
     return StructureRecord(
         id=f"gas:{formula}",
         label=formula,
         kind="gas",
         formula=formula,
-        symbols=[symbol, symbol],
-        positions=[(-half_bond, 0.0, 0.0), (half_bond, 0.0, 0.0)],
-        cell=[(cell_size, 0.0, 0.0), (0.0, cell_size, 0.0), (0.0, 0.0, cell_size)],
-        pbc=(False, False, False),
+        symbols=atoms.get_chemical_symbols(),
+        positions=_vectors_from_array(atoms.get_positions()),
+        cell=_vectors_from_array(atoms.cell.array),
+        pbc=tuple(bool(value) for value in atoms.pbc),
         energy_ev=None,
         metadata={
             "synthesized": True,

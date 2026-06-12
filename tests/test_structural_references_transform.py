@@ -1,10 +1,12 @@
 import unittest
 
+from ase.build import molecule
+
 from moira.ingest.models import DatasetBundle, StructureRecord
 from moira.ingest.transforms.catbench import build_catbench_coefficients
 from moira.ingest.transforms.structural_references import (
     annotate_elemental_adsorption_bundle,
-    build_diatomic_gas_record,
+    build_gas_reference_record,
     synthesize_adsorption_references,
 )
 
@@ -56,10 +58,8 @@ class StructuralReferencesTransformTest(unittest.TestCase):
             },
         )
         bundle = DatasetBundle(name="demo", structures=[adslab])
-        gas_record = build_diatomic_gas_record(
-            symbol="N",
+        gas_record = build_gas_reference_record(
             formula="N2",
-            bond_length=1.10,
         )
 
         transformed = synthesize_adsorption_references(
@@ -90,11 +90,15 @@ class StructuralReferencesTransformTest(unittest.TestCase):
         self.assertEqual(gas.kind, "gas")
         self.assertEqual(gas.formula, "N2")
         self.assertEqual(gas.symbols, ["N", "N"])
-        self.assertEqual(gas.positions, [(-0.55, 0.0, 0.0), (0.55, 0.0, 0.0)])
+        expected_gas = molecule("N2")
+        expected_gas.set_cell((12.0, 12.0, 12.0))
+        expected_gas.center()
+        expected_gas.pbc = (False, False, False)
         self.assertEqual(
-            gas.cell,
-            [(12.0, 0.0, 0.0), (0.0, 12.0, 0.0), (0.0, 0.0, 12.0)],
+            gas.positions,
+            [tuple(float(component) for component in row) for row in expected_gas.get_positions()],
         )
+        self.assertEqual(gas.cell, [tuple(float(component) for component in row) for row in expected_gas.cell.array])
         self.assertEqual(gas.pbc, (False, False, False))
         self.assertIsNone(gas.energy_ev)
 
@@ -142,9 +146,7 @@ class StructuralReferencesTransformTest(unittest.TestCase):
             synthesize_adsorption_references(
                 bundle,
                 adsorbate_symbol="N",
-                gas_record=build_diatomic_gas_record(
-                    symbol="N",
+                gas_record=build_gas_reference_record(
                     formula="N2",
-                    bond_length=1.10,
                 ),
             )

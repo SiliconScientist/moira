@@ -9,7 +9,7 @@ from moira.ingest.sources.vasp_mapping import load_vasp_mapping_bundle
 from moira.ingest.transforms.catbench import build_catbench_coefficients
 from moira.ingest.transforms.structural_references import (
     annotate_elemental_adsorption_bundle,
-    build_diatomic_gas_record,
+    build_gas_reference_record,
     synthesize_adsorption_references,
 )
 from moira.ingest.writers.catbench import write_catbench_dataset
@@ -47,10 +47,8 @@ def load_elemental_n_ase_db_dataset(
     synthesized = synthesize_adsorption_references(
         annotated,
         adsorbate_symbol="N",
-        gas_record=build_diatomic_gas_record(
-            symbol="N",
+        gas_record=build_gas_reference_record(
             formula="N2",
-            bond_length=1.10,
         ),
     )
     return _annotate_elemental_n_catbench_layout(synthesized)
