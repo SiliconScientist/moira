@@ -10,20 +10,22 @@ from moira.ingest.transforms.structural_references import (
 
 class StructuralReferencesTransformTest(unittest.TestCase):
     def test_synthesizes_references_from_adslab_geometry(self) -> None:
+        adslab_positions = [
+            (0.0, 0.0, 0.0),
+            (1.5, 0.0, 0.0),
+            (0.75, 0.75, 1.2),
+        ]
+        adslab_cell = [
+            (5.0, 0.0, 0.0),
+            (0.0, 5.0, 0.0),
+            (0.0, 0.0, 15.0),
+        ]
         adslab = StructureRecord(
             id="alpha-beta:N:1",
             kind="adslab",
             symbols=["Pt", "Pt", "N"],
-            positions=[
-                (0.0, 0.0, 0.0),
-                (1.5, 0.0, 0.0),
-                (0.75, 0.75, 1.2),
-            ],
-            cell=[
-                (5.0, 0.0, 0.0),
-                (0.0, 5.0, 0.0),
-                (0.0, 0.0, 15.0),
-            ],
+            positions=adslab_positions,
+            cell=adslab_cell,
             pbc=(True, True, True),
             energy_ev=None,
             metadata={
@@ -56,12 +58,21 @@ class StructuralReferencesTransformTest(unittest.TestCase):
 
         self.assertEqual(updated_adslab.formula, "*N")
         self.assertEqual(updated_adslab.metadata["adsorbate"], "N")
+        self.assertIsNone(updated_adslab.energy_ev)
         self.assertEqual(slab.kind, "slab")
         self.assertEqual(slab.symbols, ["Pt", "Pt"])
+        self.assertEqual(slab.positions, adslab_positions[:2])
+        self.assertEqual(slab.cell, adslab_cell)
+        self.assertEqual(slab.pbc, (True, True, True))
         self.assertIsNone(slab.energy_ev)
         self.assertEqual(gas.kind, "gas")
         self.assertEqual(gas.formula, "N2")
         self.assertEqual(gas.symbols, ["N", "N"])
+        self.assertEqual(gas.positions, [(-0.55, 0.0, 0.0), (0.55, 0.0, 0.0)])
+        self.assertEqual(
+            gas.cell,
+            [(12.0, 0.0, 0.0), (0.0, 12.0, 0.0), (0.0, 0.0, 12.0)],
+        )
         self.assertEqual(gas.pbc, (False, False, False))
         self.assertIsNone(gas.energy_ev)
 
@@ -70,6 +81,9 @@ class StructuralReferencesTransformTest(unittest.TestCase):
         self.assertIs(reference.adslab, updated_adslab)
         self.assertIs(reference.slab, slab)
         self.assertEqual(reference.gas, [gas])
+        self.assertTrue(reference.is_geometry_complete())
+        self.assertTrue(reference.is_energy_complete())
+        self.assertTrue(all(record.energy_ev is None for record in (updated_adslab, slab, gas)))
 
         coeff_setting = build_catbench_coefficients(
             transformed,
