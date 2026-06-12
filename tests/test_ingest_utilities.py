@@ -65,15 +65,32 @@ class StoichiometryUtilitiesTest(unittest.TestCase):
         )
 
     def test_build_catbench_coefficients_transforms_bundle_references(self) -> None:
+        gas = StructureRecord(
+            id="gas:CH4",
+            formula="*CH4",
+            energy_ev=None,
+            source_path="/tmp/gas",
+        )
+        slab = StructureRecord(
+            id="alpha-beta:slab",
+            energy_ev=None,
+            source_path="/tmp/slab",
+        )
+        adslab = StructureRecord(
+            id="alpha-beta:CH4:1",
+            formula="*CH4",
+            energy_ev=None,
+            source_path="/tmp/adslab",
+        )
         bundle = DatasetBundle(
             name="demo",
+            structures=[gas, slab, adslab],
             references=[
                 ReferenceSet(
-                    id="alpha-beta:CH4:1",
-                    adslab=StructureRecord(
-                        id="alpha-beta:CH4:1",
-                        formula="*CH4",
-                    ),
+                    id=adslab.id,
+                    slab=slab,
+                    adslab=adslab,
+                    gas=[gas],
                 )
             ],
         )
@@ -88,6 +105,46 @@ class StoichiometryUtilitiesTest(unittest.TestCase):
             coeff_setting,
             {"*CH4": {"slab": -1, "adslab": 1, "CH4gas": -1}},
         )
+
+    def test_build_catbench_coefficients_rejects_missing_reference_geometry(self) -> None:
+        gas = StructureRecord(
+            id="gas:CH4",
+            formula="*CH4",
+            energy_ev=None,
+            source_path="/tmp/gas",
+        )
+        slab = StructureRecord(
+            id="alpha-beta:slab",
+            energy_ev=None,
+        )
+        adslab = StructureRecord(
+            id="alpha-beta:CH4:1",
+            formula="*CH4",
+            energy_ev=None,
+            source_path="/tmp/adslab",
+        )
+        bundle = DatasetBundle(
+            name="demo",
+            structures=[gas, slab, adslab],
+            references=[
+                ReferenceSet(
+                    id=adslab.id,
+                    slab=slab,
+                    adslab=adslab,
+                    gas=[gas],
+                )
+            ],
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "Referenced structures must include geometry: alpha-beta:CH4:1: slab",
+        ):
+            build_catbench_coefficients(
+                bundle,
+                elements=["C", "H"],
+                basis_species=["CH4", "H2"],
+            )
 
     def test_clean_coefficient_snaps_near_integers(self) -> None:
         self.assertEqual(clean_coefficient(-1.0e-13), 0)

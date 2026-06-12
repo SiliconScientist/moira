@@ -18,6 +18,7 @@ def build_catbench_coefficients(
     basis_species: list[str],
     strategy: ReferenceStrategy | None = None,
 ) -> dict[str, dict[str, Any]]:
+    bundle.require_geometry_complete_references()
     return build_references(
         _reference_build_records(bundle.references),
         elements=elements,
