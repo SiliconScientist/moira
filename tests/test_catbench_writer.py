@@ -203,7 +203,7 @@ class CatbenchWriterTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ValueError,
-                "Referenced structures must be present in bundle.structures: gas:CH4",
+                "Referenced structures must be present in bundle.structures: alpha-beta:CH4:1: gas:CH4",
             ):
                 write_catbench_dataset(
                     bundle=bundle,
@@ -262,7 +262,67 @@ class CatbenchWriterTest(unittest.TestCase):
 
             with self.assertRaisesRegex(
                 ValueError,
-                "Referenced structures must include source geometry metadata: alpha-beta:CH4:1",
+                "Referenced structures must include geometry: alpha-beta:CH4:1: adslab",
+            ):
+                write_catbench_dataset(
+                    bundle=bundle,
+                    dest=dest,
+                    coeff_setting={"*CH4": {"slab": -1, "adslab": 1, "CH4gas": -1}},
+                    output_dir=output_dir,
+                    output_name="demo",
+                )
+
+    def test_write_catbench_dataset_rejects_missing_catbench_relpaths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            gas_source = root / "source" / "gas" / "0001-gas"
+            slab_source = root / "source" / "alpha-beta-0000"
+            adslab_source = root / "source" / "alpha-beta-0001"
+            dest = root / "dest"
+            output_dir = root / "raw"
+
+            _write_text(gas_source / "CONTCAR", "gas contcar\n")
+            _write_text(gas_source / "OSZICAR", "gas oszicar\n")
+            _write_text(slab_source / "CONTCAR", "slab contcar\n")
+            _write_text(slab_source / "OSZICAR", "slab oszicar\n")
+            _write_text(adslab_source / "CONTCAR", "adslab contcar\n")
+            _write_text(adslab_source / "OSZICAR", "adslab oszicar\n")
+
+            gas = StructureRecord(
+                id="gas:CH4",
+                kind="gas",
+                formula="*CH4",
+                source_path=str(gas_source),
+                metadata={"catbench_relpath": "gas/CH4gas"},
+            )
+            slab = StructureRecord(
+                id="alpha-beta:slab",
+                kind="slab",
+                source_path=str(slab_source),
+                metadata={"catbench_relpath": "alpha-beta/slab"},
+            )
+            adslab = StructureRecord(
+                id="alpha-beta:CH4:1",
+                kind="adslab",
+                formula="*CH4",
+                source_path=str(adslab_source),
+            )
+            bundle = DatasetBundle(
+                name="demo",
+                structures=[gas, slab, adslab],
+                references=[
+                    ReferenceSet(
+                        id=adslab.id,
+                        slab=slab,
+                        adslab=adslab,
+                        gas=[gas],
+                    )
+                ],
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "Referenced structures must include CatBench relpaths: alpha-beta:CH4:1: alpha-beta:CH4:1",
             ):
                 write_catbench_dataset(
                     bundle=bundle,

@@ -31,31 +31,21 @@ def materialize_structure(structure: StructureRecord, dest: Path) -> None:
     copy_selected_files(Path(structure.source_path), dest / relpath)
 
 
-def _validate_emittable_references(bundle: DatasetBundle) -> None:
-    structure_ids = {structure.id for structure in bundle.structures}
-    missing_ids: list[str] = []
-    missing_geometry: list[str] = []
-
+def _require_catbench_reference_paths(bundle: DatasetBundle) -> None:
+    missing: dict[str, list[str]] = {}
     for reference in bundle.references:
-        referenced_structures = [
-            structure
-            for structure in [reference.slab, reference.adslab, *reference.gas]
-            if structure is not None
-        ]
-        for structure in referenced_structures:
-            if structure.id not in structure_ids:
-                missing_ids.append(structure.id)
-                continue
+        for _, structure in reference.energy_complete_components():
             relpath = structure.metadata.get("catbench_relpath")
-            if structure.source_path is None or not isinstance(relpath, str):
-                missing_geometry.append(structure.id)
-
-    if missing_ids:
-        missing = ", ".join(sorted(set(missing_ids)))
-        raise ValueError(f"Referenced structures must be present in bundle.structures: {missing}")
-    if missing_geometry:
-        missing = ", ".join(sorted(set(missing_geometry)))
-        raise ValueError(f"Referenced structures must include source geometry metadata: {missing}")
+            if not isinstance(relpath, str):
+                missing.setdefault(reference.id, []).append(structure.id)
+    if missing:
+        problems = "; ".join(
+            f"{reference_id}: {', '.join(sorted(set(ids)))}"
+            for reference_id, ids in sorted(missing.items())
+        )
+        raise ValueError(
+            "Referenced structures must include CatBench relpaths: " + problems
+        )
 
 
 def write_catbench_dataset(
@@ -66,7 +56,8 @@ def write_catbench_dataset(
     output_dir: Path,
     output_name: str,
 ) -> Path:
-    _validate_emittable_references(bundle)
+    bundle.require_geometry_complete_references()
+    _require_catbench_reference_paths(bundle)
     materialize_catbench_layout(bundle, dest)
 
     output_dir.mkdir(parents=True, exist_ok=True)
