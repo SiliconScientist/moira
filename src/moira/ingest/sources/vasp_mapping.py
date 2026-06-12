@@ -89,7 +89,7 @@ def _load_gas_records(
     if not gas_root.is_dir():
         return gas_records
 
-    for folder in gas_root.iterdir():
+    for folder in sorted(gas_root.iterdir()):
         if not folder.is_dir():
             continue
 
@@ -127,7 +127,7 @@ def _load_system_records(
     slab_by_system: dict[str, StructureRecord] = {}
     pending_entries: dict[str, list[tuple[str, str, float]]] = defaultdict(list)
 
-    for folder in source.iterdir():
+    for folder in sorted(source.iterdir()):
         if not folder.is_dir():
             continue
 
