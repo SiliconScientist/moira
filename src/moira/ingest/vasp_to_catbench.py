@@ -1,26 +1,35 @@
 from pathlib import Path
 
 from moira.config import get_config
-from moira.ingest.catbench_coefficients import build_coeff_setting
+from moira.ingest.models import DatasetBundle
 from moira.ingest.sources.vasp_mapping import load_vasp_mapping_bundle
+from moira.ingest.transforms.catbench import build_catbench_coefficients
 from moira.ingest.writers.catbench import write_catbench_dataset
+
+
+def load_dataset(cfg) -> DatasetBundle:
+    return load_vasp_mapping_bundle(
+        cfg.ingest.source,
+        dataset_name=cfg.ingest.dataset_name,
+    )
+
+
+def build_coefficients(cfg, bundle: DatasetBundle) -> dict[str, dict[str, int | float]]:
+    return build_catbench_coefficients(
+        bundle,
+        elements=list(cfg.ingest.stoich.elements),
+        basis_species=list(cfg.ingest.stoich.basis_species),
+    )
 
 
 def main():
     cfg = get_config()
-    source = cfg.ingest.source
     dest = cfg.ingest.catbench_folder
     if dest is None:
         raise ValueError("cfg.ingest.catbench_folder is not initialized")
 
-    bundle = load_vasp_mapping_bundle(source, dataset_name=cfg.ingest.dataset_name)
-    tag_map = bundle.metadata["tag_map"]
-
-    coeff_setting = build_coeff_setting(
-        tag_map=tag_map,
-        elements=list(cfg.ingest.stoich.elements),
-        basis_species=list(cfg.ingest.stoich.basis_species),
-    )
+    bundle = load_dataset(cfg)
+    coeff_setting = build_coefficients(cfg, bundle)
 
     # CatBench's VASP preprocessor uses one parameter for both:
     # 1) input dataset directory traversal, and 2) output JSON filename stem.

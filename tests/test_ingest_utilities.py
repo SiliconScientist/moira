@@ -2,12 +2,14 @@ import unittest
 
 from moira.ingest.catbench_coefficients import build_coeff_setting, clean_coefficient
 from moira.ingest.formulas import formula_to_composition
+from moira.ingest.models import DatasetBundle, ReferenceSet, StructureRecord
 from moira.ingest.references import (
     CatBenchReferenceStrategy,
     ReferenceBuildRecord,
     build_references,
 )
 from moira.ingest.stoichiometry import solve_stoichiometry
+from moira.ingest.transforms.catbench import build_catbench_coefficients
 
 
 class FormulaUtilitiesTest(unittest.TestCase):
@@ -59,6 +61,31 @@ class StoichiometryUtilitiesTest(unittest.TestCase):
 
         self.assertEqual(
             references,
+            {"*CH4": {"slab": -1, "adslab": 1, "CH4gas": -1}},
+        )
+
+    def test_build_catbench_coefficients_transforms_bundle_references(self) -> None:
+        bundle = DatasetBundle(
+            name="demo",
+            references=[
+                ReferenceSet(
+                    id="alpha-beta:CH4:1",
+                    adslab=StructureRecord(
+                        id="alpha-beta:CH4:1",
+                        formula="*CH4",
+                    ),
+                )
+            ],
+        )
+
+        coeff_setting = build_catbench_coefficients(
+            bundle,
+            elements=["C", "H"],
+            basis_species=["CH4", "H2"],
+        )
+
+        self.assertEqual(
+            coeff_setting,
             {"*CH4": {"slab": -1, "adslab": 1, "CH4gas": -1}},
         )
 
