@@ -31,6 +31,33 @@ def materialize_structure(structure: StructureRecord, dest: Path) -> None:
     copy_selected_files(Path(structure.source_path), dest / relpath)
 
 
+def _validate_emittable_references(bundle: DatasetBundle) -> None:
+    structure_ids = {structure.id for structure in bundle.structures}
+    missing_ids: list[str] = []
+    missing_geometry: list[str] = []
+
+    for reference in bundle.references:
+        referenced_structures = [
+            structure
+            for structure in [reference.slab, reference.adslab, *reference.gas]
+            if structure is not None
+        ]
+        for structure in referenced_structures:
+            if structure.id not in structure_ids:
+                missing_ids.append(structure.id)
+                continue
+            relpath = structure.metadata.get("catbench_relpath")
+            if structure.source_path is None or not isinstance(relpath, str):
+                missing_geometry.append(structure.id)
+
+    if missing_ids:
+        missing = ", ".join(sorted(set(missing_ids)))
+        raise ValueError(f"Referenced structures must be present in bundle.structures: {missing}")
+    if missing_geometry:
+        missing = ", ".join(sorted(set(missing_geometry)))
+        raise ValueError(f"Referenced structures must include source geometry metadata: {missing}")
+
+
 def write_catbench_dataset(
     *,
     bundle: DatasetBundle,
@@ -39,6 +66,7 @@ def write_catbench_dataset(
     output_dir: Path,
     output_name: str,
 ) -> Path:
+    _validate_emittable_references(bundle)
     materialize_catbench_layout(bundle, dest)
 
     output_dir.mkdir(parents=True, exist_ok=True)
