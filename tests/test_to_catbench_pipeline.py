@@ -92,6 +92,46 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             self.assertIsNone(entry["raw"]["N2gas"]["energy_ref"])
             preprocess.assert_not_called()
 
+    def test_end_to_end_elemental_n_ase_db_writes_json_without_catbench_folder(self) -> None:
+        db_path = Path("data/screening/trimetallic_n.db")
+        self.assertTrue(db_path.is_file())
+
+        bundle = load_elemental_ase_db_dataset(
+            db_path,
+            adsorbate_symbol="N",
+            dataset_name="demo",
+            row_limit=1,
+        )
+        coeff_setting = build_coefficients(
+            SimpleNamespace(
+                ingest=SimpleNamespace(
+                    stoich=SimpleNamespace(
+                        elements=["N"],
+                        basis_species=["N2"],
+                    )
+                )
+            ),
+            bundle,
+        )
+        cfg = SimpleNamespace(
+            ingest=SimpleNamespace(
+                dataset_name="demo",
+                catbench_folder=None,
+            )
+        )
+
+        with patch("moira.ingest.writers.catbench.catbench_vasp.vasp_preprocessing") as preprocess:
+            output_path = write_dataset(
+                cfg,
+                bundle=bundle,
+                coeff_setting=coeff_setting,
+            )
+
+        self.assertEqual(output_path.name, "demo_adsorption.json")
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        self.assertEqual(sorted(payload), ["trimetallic_n_1_N"])
+        preprocess.assert_not_called()
+
     def test_generic_elemental_adsorption_profile_supports_mixed_adsorbates(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             db_path = Path(tmpdir) / "mixed.db"

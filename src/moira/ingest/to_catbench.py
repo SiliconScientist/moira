@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from moira.config import get_config
 from moira.ingest.models import DatasetBundle
@@ -70,18 +71,24 @@ def build_coefficients(cfg, bundle: DatasetBundle) -> dict[str, dict[str, int | 
 
 def write_dataset(cfg, *, bundle: DatasetBundle, coeff_setting: dict[str, dict[str, int | float]]) -> Path:
     dest = cfg.ingest.catbench_folder
-    if dest is None:
-        raise ValueError("cfg.ingest.catbench_folder is not initialized")
-
     project_root = Path.cwd()
     output_dir = project_root / "data" / "raw_data"
-    return write_catbench_dataset(
-        bundle=bundle,
-        dest=dest,
-        coeff_setting=coeff_setting,
-        output_dir=output_dir,
-        output_name=cfg.ingest.dataset_name,
-    )
+    if dest is not None:
+        return write_catbench_dataset(
+            bundle=bundle,
+            dest=dest,
+            coeff_setting=coeff_setting,
+            output_dir=output_dir,
+            output_name=cfg.ingest.dataset_name,
+        )
+    with TemporaryDirectory() as tmpdir:
+        return write_catbench_dataset(
+            bundle=bundle,
+            dest=Path(tmpdir),
+            coeff_setting=coeff_setting,
+            output_dir=output_dir,
+            output_name=cfg.ingest.dataset_name,
+        )
 
 
 def _annotate_elemental_catbench_layout(bundle: DatasetBundle) -> DatasetBundle:
