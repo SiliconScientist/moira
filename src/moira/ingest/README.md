@@ -24,6 +24,12 @@ For the current VASP mapping loader in [sources/vasp_mapping.py](/Users/averyhil
 - `StructureRecord.metadata["catbench_relpath"]` is the relative path the CatBench writer materializes
 - `ReferenceSet.slab`, `ReferenceSet.adslab`, and `ReferenceSet.gas` are populated enough for CatBench coefficient generation
 
+For the current ASE DB loader in [sources/ase_db.py](/Users/averyhill/github/moira/src/moira/ingest/sources/ase_db.py:1):
+
+- `StructureRecord.metadata` keeps `row.key_value_pairs`
+- if `row.data["structure_metadata"]` exists, those typed values override the stringified key/value pairs
+- source fields such as `adslab_id`, `parent_slab_id`, `surface_type`, `swap_indices`, and `initial_site_coordinate` are expected to survive downstream unchanged unless a transform adds derived keys
+
 ## Optional Fields
 
 Most model fields are intentionally optional so partial datasets can still load.
@@ -65,6 +71,25 @@ It supports two output modes:
 
 - full-energy mode: structures have geometry plus energies, so the writer can materialize VASP-style inputs and run CatBench preprocessing
 - partial-energy mode: structures have geometry but may omit energies, so the writer still materializes the dataset layout without inventing missing energy labels
+
+The emitted adsorption JSON now also carries a top-level per-reaction `metadata` block:
+
+- `metadata["reference"]`: `ReferenceSet.metadata`
+- `metadata["structures"]["slab"]`: slab structure metadata
+- `metadata["structures"]["adslab"]`: adslab structure metadata
+- `metadata["structures"]["gas"]`: gas structure metadata keyed by gas record id
+
+This block is additive and does not replace CatBench's existing `raw`, `ref_ads_eng`, or `adsorbate_indices` fields.
+
+## MLIP Metadata Handoff
+
+MLIP runs consume the emitted adsorption JSON and write `*_result.json` files under the configured result directory.
+
+- Moira copies each reaction's dataset `metadata` block into the corresponding MLIP result entry after CatBench finishes
+- [moira.mlip.result_parsing](/Users/averyhill/github/moira/src/moira/mlip/result_parsing.py:1) preserves that metadata as both `metadata` and `metadata_json`
+- [moira.mlip.artifacts](/Users/averyhill/github/moira/src/moira/mlip/artifacts.py:1) exposes the serialized value as `reaction_metadata_json` in the wide predictions table
+
+That is the current contract for preserving source metadata from ASE DB ingestion through MLIP result extraction.
 
 It does not require reaction records or a fully populated bundle.
 

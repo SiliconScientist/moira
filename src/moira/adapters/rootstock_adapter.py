@@ -9,6 +9,7 @@ from typing import Any
 from catbench.adsorption import AdsorptionCalculation
 
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
+from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
 from moira.mlip.registry import load_config
 
 
@@ -67,6 +68,7 @@ def run(
     root = rootstock_cfg.get("root", "/projects/bchg/rootstock")
     spec = _get_rootstock_spec(config, model)
     checkpoint = _resolve_checkpoint(spec.get("checkpoint"), resolved_config_path)
+    mlip_name = str(spec["mlip_name"])
 
     with ExitStack() as stack:
         calculators = [
@@ -87,8 +89,12 @@ def run(
         ):
             adsorption_calc = AdsorptionCalculation(
                 calculators,
-                mlip_name=str(spec["mlip_name"]),
+                mlip_name=mlip_name,
                 benchmark=dataset_name,
                 optimizer=optimizer,
             )
-            adsorption_calc.run()
+            save_directory = Path(adsorption_calc.run())
+            attach_dataset_metadata_to_result_file(
+                dataset_path=dataset_path,
+                result_path=save_directory / f"{mlip_name}_result.json",
+            )

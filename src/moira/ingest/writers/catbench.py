@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 import shutil
 from pathlib import Path
 from typing import Any
@@ -108,6 +109,7 @@ def write_catbench_dataset(
             coeff_setting=coeff_setting,
             output_path=output_path,
         )
+        _attach_reference_metadata(bundle=bundle, output_path=output_path)
         return output_path
 
     catbench_vasp.get_raw_data_directory = lambda: str(output_dir)
@@ -116,6 +118,7 @@ def write_catbench_dataset(
         dataset_name=str(dest),
         coeff_setting=coeff_setting,
     )
+    _attach_reference_metadata(bundle=bundle, output_path=output_path)
     return output_path
 
 
@@ -176,6 +179,64 @@ def _write_partial_energy_catbench_json(
         data[reaction_key] = entry
 
     save_catbench_json(data, str(output_path))
+
+
+def _attach_reference_metadata(*, bundle: DatasetBundle, output_path: Path) -> None:
+    if not output_path.is_file():
+        return
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise TypeError(
+            f"Expected CatBench JSON at {output_path} to be an object, got {type(payload).__name__}"
+        )
+
+    for reference in bundle.references:
+        reaction_key = _reaction_key(reference)
+        entry = payload.get(reaction_key)
+        if not isinstance(entry, dict):
+            continue
+        entry["metadata"] = _reference_metadata_payload(reference)
+
+    output_path.write_text(
+        json.dumps(payload, indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _reference_metadata_payload(reference) -> dict[str, Any]:
+    return {
+        "reference": _json_safe_metadata(reference.metadata),
+        "structures": {
+            "slab": _json_safe_metadata(reference.slab.metadata if reference.slab is not None else {}),
+            "adslab": _json_safe_metadata(reference.adslab.metadata if reference.adslab is not None else {}),
+            "gas": {
+                gas.id: _json_safe_metadata(gas.metadata)
+                for gas in reference.gas
+            },
+        },
+    }
+
+
+def _json_safe_metadata(value: Any) -> Any:
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, dict):
+        return {
+            str(key): _json_safe_metadata(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, (list, tuple)):
+        return [_json_safe_metadata(item) for item in value]
+    return str(value)
+
+
+def _reaction_key(reference) -> str:
+    adsorbate_name = _reference_adsorbate_name(reference)
+    surface_name = reference.id.replace(":", "_")
+    return f"{surface_name}_{adsorbate_name}"
 
 
 def _reference_coefficients(

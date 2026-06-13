@@ -169,6 +169,8 @@ def detect_anomalies_from_result_dict(
             "mlip_ads_eng_single": reaction_data.get("single_calculation", {}).get(
                 "ads_eng"
             ),
+            "metadata": reaction_data.get("metadata"),
+            "metadata_json": _metadata_json(reaction_data.get("metadata")),
             "label": label,
             "labels": labels,
             "details": anomalies,
@@ -192,3 +194,9 @@ def extract_adsorbate(reaction: str) -> str | None:
         return None
     product = reaction.split("->", 1)[1].strip()
     return product.removesuffix("*") or None
+
+
+def _metadata_json(metadata: Any) -> str | None:
+    if metadata is None:
+        return None
+    return json.dumps(metadata, sort_keys=True)

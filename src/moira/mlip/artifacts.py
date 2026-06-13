@@ -105,6 +105,7 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
             "adsorbate",
             "dft_ads_eng",
             "mlip_ads_eng_median",
+            "metadata_json",
             "label",
             *INFERENCE_DETAIL_COLUMNS,
         }
@@ -119,6 +120,7 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
                 "adsorbate",
                 "dft_ads_eng",
                 "mlip_ads_eng_median",
+                "metadata_json",
                 "label",
                 *INFERENCE_DETAIL_COLUMNS,
             ]
@@ -126,6 +128,7 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
             {
                 reaction_col: "reaction",
                 "dft_ads_eng": "reference_ads_eng",
+                "metadata_json": "reaction_metadata_json",
                 "mlip_ads_eng_median": mlip_energy_column_name(model_name),
                 "label": mlip_label_column_name(model_name),
                 **{
@@ -139,9 +142,13 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
         )
 
         if reference_df is None:
-            reference_df = part.select(["reaction", "adsorbate", "reference_ads_eng"])
+            reference_df = part.select(
+                ["reaction", "adsorbate", "reference_ads_eng", "reaction_metadata_json"]
+            )
         else:
-            ref_part = part.select(["reaction", "adsorbate", "reference_ads_eng"])
+            ref_part = part.select(
+                ["reaction", "adsorbate", "reference_ads_eng", "reaction_metadata_json"]
+            )
             overlap = reference_df.join(
                 ref_part, on="reaction", how="inner", suffix="_incoming"
             )
@@ -159,6 +166,14 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
             if adsorbate_mismatch.height > 0:
                 raise ValueError(
                     f"Adsorbates differ for overlapping reactions in {path}"
+                )
+            metadata_mismatch = overlap.filter(
+                pl.col("reaction_metadata_json").fill_null("")
+                != pl.col("reaction_metadata_json_incoming").fill_null("")
+            )
+            if metadata_mismatch.height > 0:
+                raise ValueError(
+                    f"Reaction metadata differ for overlapping reactions in {path}"
                 )
             reference_df = (
                 pl.concat([reference_df, ref_part])

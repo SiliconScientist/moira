@@ -17,6 +17,7 @@ from moira.mlip.artifacts import (
     model_name_from_result_path,
     result_file_name,
 )
+from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
 from moira.mlip.result_parsing import (
     detect_anomalies_from_result_dict,
     extract_adsorbate,
@@ -59,6 +60,8 @@ class MlipResultParsingTests(unittest.TestCase):
                 "dft_ads_eng": 1.0,
                 "mlip_ads_eng_median": 1.1,
                 "mlip_ads_eng_single": 1.15,
+                "metadata": None,
+                "metadata_json": None,
                 "label": "normal",
                 "labels": [],
                 "details": {
@@ -107,15 +110,19 @@ class MlipArtifactTests(unittest.TestCase):
             result_path = base_dir / "mace_result.json"
             result_path.write_text(
                 json.dumps(
-                    {
-                        "calculation_settings": {
-                            "chemical_bond_cutoff": 1.25,
-                            "n_crit_relax": 200,
-                        },
-                        "rxn-1->OH*": {
-                            "reference": {"ads_eng": 1.0},
-                            "final": {
-                                "median_num": 0,
+            {
+                "calculation_settings": {
+                    "chemical_bond_cutoff": 1.25,
+                    "n_crit_relax": 200,
+                },
+                "rxn-1->OH*": {
+                    "metadata": {
+                        "adslab_id": "adslab-1",
+                        "surface_type": "fcc111",
+                    },
+                    "reference": {"ads_eng": 1.0},
+                    "final": {
+                        "median_num": 0,
                                 "ads_eng_median": 1.1,
                                 "ads_seed_range": 0.0,
                                 "ads_eng_seed_range": 0.0,
@@ -136,8 +143,59 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(wide_df.get_column("reaction").to_list(), ["rxn-1->OH*"])
         self.assertEqual(wide_df.get_column("adsorbate").to_list(), ["OH"])
         self.assertEqual(wide_df.get_column("reference_ads_eng").to_list(), [1.0])
+        self.assertEqual(
+            wide_df.get_column("reaction_metadata_json").to_list(),
+            ['{"adslab_id": "adslab-1", "surface_type": "fcc111"}'],
+        )
         self.assertEqual(wide_df.get_column("mace_mlip_ads_eng_median").to_list(), [1.1])
         self.assertEqual(wide_df.get_column("mace_label").to_list(), ["normal"])
+
+    def test_attach_dataset_metadata_to_result_file_copies_reaction_metadata(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            dataset_path = root / "dataset.json"
+            result_path = root / "mace_result.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "rxn-1->OH*": {
+                            "metadata": {
+                                "adslab_id": "adslab-1",
+                                "surface_type": "fcc111",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"chemical_bond_cutoff": 1.25},
+                        "rxn-1->OH*": {
+                            "reference": {"ads_eng": 1.0},
+                            "final": {"ads_eng_median": 1.1, "median_num": 0},
+                            "0": {
+                                "adslab_steps": 5,
+                                "substrate_displacement": 0.1,
+                                "max_bond_change": 5.0,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            attach_dataset_metadata_to_result_file(
+                dataset_path=dataset_path,
+                result_path=result_path,
+            )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["rxn-1->OH*"]["metadata"],
+            {"adslab_id": "adslab-1", "surface_type": "fcc111"},
+        )
 
 
 class DependencyBoundaryTests(unittest.TestCase):

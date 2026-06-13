@@ -9,6 +9,7 @@ from fairchem.core import FAIRChemCalculator
 from fairchem.core.units.mlip_unit import load_predict_unit
 
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
+from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "uma-s-1p1"
@@ -83,4 +84,8 @@ def run(
             benchmark=dataset_name,
             optimizer=optimizer,
         )
-        adsorption_calc.run()
+        save_directory = Path(adsorption_calc.run())
+        attach_dataset_metadata_to_result_file(
+            dataset_path=dataset_path,
+            result_path=save_directory / f"{mlip_name}_result.json",
+        )

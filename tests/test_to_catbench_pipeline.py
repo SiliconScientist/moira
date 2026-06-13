@@ -24,6 +24,48 @@ def _write_text(path: Path, content: str) -> None:
 
 
 class ToCatbenchPipelineTest(unittest.TestCase):
+    def test_elemental_ase_db_dataset_preserves_source_metadata_through_reference_synthesis(self) -> None:
+        db_path = Path("data/screening/test_n.db")
+        self.assertTrue(db_path.is_file())
+
+        bundle = load_elemental_ase_db_dataset(
+            db_path,
+            adsorbate_symbol="N",
+            dataset_name="test-n",
+            row_limit=1,
+        )
+
+        self.assertEqual(len(bundle.references), 1)
+        reference = bundle.references[0]
+        adslab = reference.adslab
+        slab = reference.slab
+
+        self.assertIsNotNone(adslab)
+        self.assertIsNotNone(slab)
+        assert adslab is not None
+        assert slab is not None
+
+        for metadata in (reference.metadata, adslab.metadata, slab.metadata):
+            self.assertEqual(metadata["adslab_id"], "adslab-000001")
+            self.assertEqual(metadata["parent_slab_id"], "slab-000004")
+            self.assertEqual(metadata["host_element"], "Pt")
+            self.assertEqual(metadata["surface_type"], "fcc111")
+            self.assertEqual(metadata["supercell_size"], [3, 3, 4])
+            self.assertEqual(metadata["swap_indices"], [0, 1])
+            self.assertEqual(metadata["swap_elements"], ["Cu", "Ag"])
+            self.assertEqual(metadata["top_layer_motif"], "heterodimer")
+            self.assertEqual(metadata["initial_site_label"], "top")
+            self.assertEqual(
+                metadata["initial_site_coordinate"],
+                [8.341095230486822, 4.8157335766578715, 18.810475736885053],
+            )
+            self.assertEqual(metadata["adsorbate"], "N")
+
+        self.assertEqual(adslab.metadata["source_formula"], "AgCuPt34N")
+        self.assertEqual(adslab.metadata["adsorbate_symbol"], "N")
+        self.assertEqual(slab.metadata["synthesized_from"], adslab.id)
+        self.assertEqual(reference.metadata["reference_transform"], "structural_references")
+
     def test_end_to_end_elemental_n_ase_db_to_catbench_layout_uses_real_db(self) -> None:
         db_path = Path("data/screening/trimetallic_n.db")
         self.assertTrue(db_path.is_file())
@@ -104,6 +146,66 @@ class ToCatbenchPipelineTest(unittest.TestCase):
                 list(range(18, 36)),
             )
             preprocess.assert_not_called()
+
+    def test_elemental_ase_db_json_output_includes_reference_metadata(self) -> None:
+        db_path = Path("data/screening/test_n.db")
+        self.assertTrue(db_path.is_file())
+
+        bundle = load_elemental_ase_db_dataset(
+            db_path,
+            adsorbate_symbol="N",
+            dataset_name="test-n",
+            row_limit=1,
+        )
+        coeff_setting = build_coefficients(
+            SimpleNamespace(
+                ingest=SimpleNamespace(
+                    stoich=SimpleNamespace(
+                        elements=["N"],
+                        basis_species=["N2"],
+                    )
+                )
+            ),
+            bundle,
+        )
+        cfg = SimpleNamespace(
+            ingest=SimpleNamespace(
+                dataset_name="test-n",
+                catbench_folder=None,
+            )
+        )
+
+        with patch("moira.ingest.writers.catbench.catbench_vasp.vasp_preprocessing") as preprocess:
+            output_path = write_dataset(
+                cfg,
+                bundle=bundle,
+                coeff_setting=coeff_setting,
+            )
+
+        payload = json.loads(output_path.read_text(encoding="utf-8"))
+        entry = payload["test_n_1_N"]
+
+        self.assertEqual(
+            entry["metadata"]["reference"]["adslab_id"],
+            "adslab-000001",
+        )
+        self.assertEqual(
+            entry["metadata"]["reference"]["initial_site_coordinate"],
+            [8.341095230486822, 4.8157335766578715, 18.810475736885053],
+        )
+        self.assertEqual(
+            entry["metadata"]["structures"]["slab"]["synthesized_from"],
+            "test_n:1",
+        )
+        self.assertEqual(
+            entry["metadata"]["structures"]["adslab"]["source_formula"],
+            "AgCuPt34N",
+        )
+        self.assertEqual(
+            entry["metadata"]["structures"]["gas"]["gas:N2"]["reference_species"],
+            "N2",
+        )
+        preprocess.assert_not_called()
 
     def test_end_to_end_elemental_n_ase_db_writes_json_without_catbench_folder(self) -> None:
         db_path = Path("data/screening/trimetallic_n.db")
