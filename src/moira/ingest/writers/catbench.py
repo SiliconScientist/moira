@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import shutil
 from pathlib import Path
 from typing import Any
@@ -51,12 +52,15 @@ def _atoms_from_structure(structure: StructureRecord) -> Atoms:
         raise ValueError(f"Structure '{structure.id}' is missing atomic geometry")
     if structure.cell is None or structure.pbc is None:
         raise ValueError(f"Structure '{structure.id}' is missing cell geometry")
-    return Atoms(
+    atoms = Atoms(
         symbols=structure.symbols,
         positions=structure.positions,
         cell=structure.cell,
         pbc=structure.pbc,
     )
+    if structure.constraints not in (None, [], ()):
+        atoms.set_constraint(deepcopy(structure.constraints))
+    return atoms
 
 
 def _write_oszicar(path: Path, energy_ev: float) -> None:

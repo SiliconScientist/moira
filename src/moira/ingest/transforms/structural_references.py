@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import replace
 from typing import Callable
 
@@ -220,6 +221,7 @@ def _build_slab_record(adslab: StructureRecord, *, slab_key: str) -> StructureRe
         cell=_vectors_from_array(slab_atoms.cell.array),
         pbc=tuple(bool(value) for value in slab_atoms.pbc),
         energy_ev=None,
+        constraints=deepcopy(slab_atoms.constraints) or None,
         metadata=metadata,
     )
 
@@ -286,12 +288,15 @@ def _atoms_from_structure(structure: StructureRecord) -> Atoms:
     assert structure.positions is not None
     assert structure.cell is not None
     assert structure.pbc is not None
-    return Atoms(
+    atoms = Atoms(
         symbols=structure.symbols,
         positions=structure.positions,
         cell=structure.cell,
         pbc=structure.pbc,
     )
+    if structure.constraints not in (None, [], ()):
+        atoms.set_constraint(deepcopy(structure.constraints))
+    return atoms
 
 
 def _vectors_from_array(values: object) -> list[Vector3]:

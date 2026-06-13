@@ -9,6 +9,7 @@ from ase import Atoms
 from ase.db import connect
 
 from moira.ingest.models import StructureRecord
+from moira.ingest.site_constraints import atoms_from_atoms_json
 from moira.ingest.to_catbench import (
     build_coefficients,
     load_dataset,
@@ -90,6 +91,18 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             self.assertIsNone(entry["raw"]["star"]["energy_ref"])
             self.assertIsNone(entry["raw"]["Nstar"]["energy_ref"])
             self.assertIsNone(entry["raw"]["N2gas"]["energy_ref"])
+            slab_atoms = atoms_from_atoms_json(entry["raw"]["star"]["atoms_json"])
+            adslab_atoms = atoms_from_atoms_json(entry["raw"]["Nstar"]["atoms_json"])
+            self.assertEqual(len(slab_atoms.constraints), 1)
+            self.assertEqual(
+                slab_atoms.constraints[0].index.tolist(),
+                list(range(18, 36)),
+            )
+            self.assertEqual(len(adslab_atoms.constraints), 1)
+            self.assertEqual(
+                adslab_atoms.constraints[0].index.tolist(),
+                list(range(18, 36)),
+            )
             preprocess.assert_not_called()
 
     def test_end_to_end_elemental_n_ase_db_writes_json_without_catbench_folder(self) -> None:

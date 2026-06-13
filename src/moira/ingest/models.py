@@ -28,6 +28,7 @@ class StructureRecord:
     pbc: tuple[bool, bool, bool] | None = None
 
     energy_ev: float | None = None
+    constraints: Any | None = None
 
     source_id: str | None = None
     source_path: str | None = None

@@ -4,7 +4,10 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from ase.constraints import FixAtoms
+
 from moira.ingest.models import DatasetBundle, ReferenceSet, StructureRecord
+from moira.ingest.site_constraints import atoms_from_atoms_json
 from moira.ingest.writers.catbench import materialize_catbench_layout, write_catbench_dataset
 
 
@@ -39,6 +42,7 @@ class CatbenchWriterTest(unittest.TestCase):
                 cell=[(5.0, 0.0, 0.0), (0.0, 5.0, 0.0), (0.0, 0.0, 15.0)],
                 pbc=(True, True, True),
                 energy_ev=None,
+                constraints=[FixAtoms(indices=[0])],
                 metadata={"catbench_relpath": "surface-1/slab"},
             )
             adslab = StructureRecord(
@@ -54,6 +58,7 @@ class CatbenchWriterTest(unittest.TestCase):
                 cell=[(5.0, 0.0, 0.0), (0.0, 5.0, 0.0), (0.0, 0.0, 15.0)],
                 pbc=(True, True, True),
                 energy_ev=None,
+                constraints=[FixAtoms(indices=[0, 1])],
                 metadata={"catbench_relpath": "surface-1/N/1"},
             )
             bundle = DatasetBundle(
@@ -98,6 +103,10 @@ class CatbenchWriterTest(unittest.TestCase):
             self.assertIsNone(entry["raw"]["Nstar"]["energy_ref"])
             self.assertIsNone(entry["raw"]["N2gas"]["energy_ref"])
             self.assertIn("atoms_json", entry["raw"]["star"])
+            slab_atoms = atoms_from_atoms_json(entry["raw"]["star"]["atoms_json"])
+            adslab_atoms = atoms_from_atoms_json(entry["raw"]["Nstar"]["atoms_json"])
+            self.assertEqual(slab_atoms.constraints[0].index.tolist(), [0])
+            self.assertEqual(adslab_atoms.constraints[0].index.tolist(), [0, 1])
             preprocess.assert_not_called()
 
     def test_write_catbench_dataset_allows_referenced_geometries_without_energies(self) -> None:

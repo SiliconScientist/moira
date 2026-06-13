@@ -33,6 +33,7 @@ def load_ase_db_bundle(
 
 
 def _structure_from_row(*, row, source: Path) -> StructureRecord:
+    atoms = row.toatoms()
     return StructureRecord(
         id=f"{source.stem}:{row.id}",
         label=row.formula,
@@ -43,6 +44,7 @@ def _structure_from_row(*, row, source: Path) -> StructureRecord:
         cell=_vectors(row.cell.tolist()),
         pbc=tuple(bool(value) for value in row.pbc.tolist()),
         energy_ev=getattr(row, "energy", None),
+        constraints=atoms.constraints or None,
         source_id=str(row.id),
         source_path=str(source),
         metadata={
