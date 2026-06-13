@@ -145,8 +145,7 @@ def _write_partial_energy_catbench_json(
             continue
         coeff = _reference_coefficients(reference, coeff_setting)
         adsorbate_name = _reference_adsorbate_name(reference)
-        surface_name = reference.id.replace(":", "_")
-        reaction_key = f"{surface_name}_{adsorbate_name}"
+        reaction_key = _reaction_key(reference)
         raw = {
             "star": {
                 "stoi": coeff["slab"],
@@ -234,6 +233,14 @@ def _json_safe_metadata(value: Any) -> Any:
 
 
 def _reaction_key(reference) -> str:
+    explicit = reference.metadata.get("adslab_id")
+    if isinstance(explicit, str) and explicit:
+        return explicit
+    adslab = reference.adslab
+    if adslab is not None:
+        explicit = adslab.metadata.get("adslab_id")
+        if isinstance(explicit, str) and explicit:
+            return explicit
     adsorbate_name = _reference_adsorbate_name(reference)
     surface_name = reference.id.replace(":", "_")
     return f"{surface_name}_{adsorbate_name}"

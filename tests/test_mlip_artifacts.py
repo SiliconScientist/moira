@@ -6,6 +6,7 @@ import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 
 from moira.mlip.artifacts import (
     find_result_files,
@@ -195,6 +196,60 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(
             payload["rxn-1->OH*"]["metadata"],
             {"adslab_id": "adslab-1", "surface_type": "fcc111"},
+        )
+
+    def test_attach_dataset_metadata_to_result_file_falls_back_to_dataset_name_and_flat_result_path(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            raw_dir = root / "data" / "raw_data"
+            raw_dir.mkdir(parents=True)
+            dataset_path = raw_dir / "test_n_adsorption.json"
+            result_dir = root / "data" / "results" / "7net-omni"
+            result_dir.mkdir(parents=True)
+            flat_result_path = result_dir.parent / "7net-omni_result.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "adslab-000001": {
+                            "metadata": {
+                                "adslab_id": "adslab-000001",
+                                "surface_type": "fcc111",
+                            }
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            flat_result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"chemical_bond_cutoff": 1.25},
+                        "adslab-000001": {
+                            "reference": {"ads_eng": 1.0},
+                            "final": {"ads_eng_median": 1.1, "median_num": 0},
+                            "0": {
+                                "adslab_steps": 5,
+                                "substrate_displacement": 0.1,
+                                "max_bond_change": 5.0,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch("pathlib.Path.cwd", return_value=root):
+                attach_dataset_metadata_to_result_file(
+                    dataset_path=None,
+                    dataset_name="test_n",
+                    result_path=result_dir / "7net-omni_result.json",
+                    mlip_name="7net-omni",
+                )
+                payload = json.loads(flat_result_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["adslab-000001"]["metadata"],
+            {"adslab_id": "adslab-000001", "surface_type": "fcc111"},
         )
 
 

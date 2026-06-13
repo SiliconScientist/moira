@@ -66,5 +66,7 @@ def run(
         save_directory = Path(adsorption_calc.run())
         attach_dataset_metadata_to_result_file(
             dataset_path=dataset_path,
+            dataset_name=dataset_name,
             result_path=save_directory / f"{mlip_name}_result.json",
+            mlip_name=mlip_name,
         )

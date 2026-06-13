@@ -183,7 +183,7 @@ class ToCatbenchPipelineTest(unittest.TestCase):
             )
 
         payload = json.loads(output_path.read_text(encoding="utf-8"))
-        entry = payload["test_n_1_N"]
+        entry = payload["adslab-000001"]
 
         self.assertEqual(
             entry["metadata"]["reference"]["adslab_id"],
