@@ -4,6 +4,11 @@ import json
 from pathlib import Path
 from typing import Any
 
+from moira.mlip.result_parsing import (
+    RESULT_ANALYSIS_KEY,
+    detect_anomalies_from_result_dict,
+)
+
 
 def attach_dataset_metadata_to_result_file(
     *,
@@ -12,33 +17,46 @@ def attach_dataset_metadata_to_result_file(
     result_path: str | Path,
     mlip_name: str | None = None,
 ) -> None:
-    resolved_dataset_path = _resolve_dataset_path(
-        dataset_path=dataset_path,
-        dataset_name=dataset_name,
-    )
-    if resolved_dataset_path is None:
-        return
     resolved_result_path = _resolve_result_path(
         result_path=Path(result_path),
         mlip_name=mlip_name,
     )
     if resolved_result_path is None:
         return
+    resolved_dataset_path = _resolve_dataset_path(
+        dataset_path=dataset_path,
+        dataset_name=dataset_name,
+    )
 
-    dataset = _load_json_object(resolved_dataset_path)
     result = _load_json_object(resolved_result_path)
+    dataset = (
+        _load_json_object(resolved_dataset_path)
+        if resolved_dataset_path is not None
+        else None
+    )
     updated = False
 
-    for reaction, reaction_data in result.items():
-        if reaction == "calculation_settings" or not isinstance(reaction_data, dict):
+    if dataset is not None:
+        for reaction, reaction_data in result.items():
+            if reaction == "calculation_settings" or not isinstance(reaction_data, dict):
+                continue
+            dataset_entry = dataset.get(reaction)
+            if not isinstance(dataset_entry, dict):
+                continue
+            metadata = dataset_entry.get("metadata")
+            if metadata is None or "metadata" in reaction_data:
+                continue
+            reaction_data["metadata"] = metadata
+            updated = True
+
+    analysis_by_reaction = detect_anomalies_from_result_dict(result)
+    for reaction, analysis_payload in analysis_by_reaction.items():
+        reaction_data = result.get(reaction)
+        if not isinstance(reaction_data, dict):
             continue
-        dataset_entry = dataset.get(reaction)
-        if not isinstance(dataset_entry, dict):
+        if reaction_data.get(RESULT_ANALYSIS_KEY) == analysis_payload:
             continue
-        metadata = dataset_entry.get("metadata")
-        if metadata is None or "metadata" in reaction_data:
-            continue
-        reaction_data["metadata"] = metadata
+        reaction_data[RESULT_ANALYSIS_KEY] = analysis_payload
         updated = True
 
     if updated:

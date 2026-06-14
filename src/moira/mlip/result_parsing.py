@@ -9,6 +9,8 @@ from catbench.utils.analysis_utils import (
     get_median_calculator_key,
 )
 
+RESULT_ANALYSIS_KEY = "moira_analysis"
+
 
 def detect_anomalies_from_result_dict(
     mlip_result: dict[str, Any],
@@ -161,20 +163,19 @@ def detect_anomalies_from_result_dict(
         else:
             label = "normal"
 
-        per_reaction[reaction] = {
-            "dft_ads_eng": reaction_data.get("reference", {}).get("ads_eng"),
-            "mlip_ads_eng_median": (
+        per_reaction[reaction] = make_result_analysis_payload(
+            dft_ads_eng=reaction_data.get("reference", {}).get("ads_eng"),
+            mlip_ads_eng_median=(
                 final_data.get("ads_eng_median") if final_data else None
             ),
-            "mlip_ads_eng_single": reaction_data.get("single_calculation", {}).get(
+            mlip_ads_eng_single=reaction_data.get("single_calculation", {}).get(
                 "ads_eng"
             ),
-            "metadata": reaction_data.get("metadata"),
-            "metadata_json": _metadata_json(reaction_data.get("metadata")),
-            "label": label,
-            "labels": labels,
-            "details": anomalies,
-        }
+            metadata=reaction_data.get("metadata"),
+            label=label,
+            labels=labels,
+            details=anomalies,
+        )
 
     return per_reaction
 
@@ -194,6 +195,27 @@ def extract_adsorbate(reaction: str) -> str | None:
         return None
     product = reaction.split("->", 1)[1].strip()
     return product.removesuffix("*") or None
+
+
+def make_result_analysis_payload(
+    dft_ads_eng: Any,
+    mlip_ads_eng_median: Any,
+    mlip_ads_eng_single: Any,
+    metadata: Any,
+    label: str,
+    labels: list[str],
+    details: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "dft_ads_eng": dft_ads_eng,
+        "mlip_ads_eng_median": mlip_ads_eng_median,
+        "mlip_ads_eng_single": mlip_ads_eng_single,
+        "metadata": metadata,
+        "metadata_json": _metadata_json(metadata),
+        "label": label,
+        "labels": labels,
+        "details": details,
+    }
 
 
 def _metadata_json(metadata: Any) -> str | None:

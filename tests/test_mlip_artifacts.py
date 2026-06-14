@@ -20,6 +20,7 @@ from moira.mlip.artifacts import (
 )
 from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
 from moira.mlip.result_parsing import (
+    RESULT_ANALYSIS_KEY,
     detect_anomalies_from_result_dict,
     extract_adsorbate,
 )
@@ -197,6 +198,34 @@ class MlipArtifactTests(unittest.TestCase):
             payload["rxn-1->OH*"]["metadata"],
             {"adslab_id": "adslab-1", "surface_type": "fcc111"},
         )
+        self.assertEqual(
+            payload["rxn-1->OH*"][RESULT_ANALYSIS_KEY],
+            {
+                "dft_ads_eng": 1.0,
+                "mlip_ads_eng_median": 1.1,
+                "mlip_ads_eng_single": None,
+                "metadata": {
+                    "adslab_id": "adslab-1",
+                    "surface_type": "fcc111",
+                },
+                "metadata_json": (
+                    '{"adslab_id": "adslab-1", "surface_type": "fcc111"}'
+                ),
+                "label": "normal",
+                "labels": [],
+                "details": {
+                    "slab_conv": 0,
+                    "ads_conv": 0,
+                    "slab_move": 0,
+                    "ads_move": 0,
+                    "slab_seed": 0,
+                    "ads_seed": 0,
+                    "ads_eng_seed": 0,
+                    "adsorbate_migration": 0,
+                    "energy_anomaly": 0,
+                },
+            },
+        )
 
     def test_attach_dataset_metadata_to_result_file_falls_back_to_dataset_name_and_flat_result_path(self) -> None:
         with TemporaryDirectory() as tmp_dir:
@@ -250,6 +279,40 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(
             payload["adslab-000001"]["metadata"],
             {"adslab_id": "adslab-000001", "surface_type": "fcc111"},
+        )
+        self.assertIn(RESULT_ANALYSIS_KEY, payload["adslab-000001"])
+
+    def test_attach_dataset_metadata_to_result_file_persists_analysis_without_dataset(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            result_path = root / "mace_result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"chemical_bond_cutoff": 1.25},
+                        "rxn-1->OH*": {
+                            "reference": {"ads_eng": 1.0},
+                            "final": {"ads_eng_median": 3.5, "median_num": 0},
+                            "0": {
+                                "adslab_steps": 5,
+                                "substrate_displacement": 0.1,
+                                "max_bond_change": 5.0,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            attach_dataset_metadata_to_result_file(
+                dataset_path=None,
+                result_path=result_path,
+            )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            payload["rxn-1->OH*"][RESULT_ANALYSIS_KEY]["label"],
+            "energy_anomaly",
         )
 
 
