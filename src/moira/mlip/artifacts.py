@@ -7,6 +7,7 @@ from typing import Any
 import polars as pl
 
 from moira.mlip.result_parsing import (
+    RESULT_ANALYSIS_KEY,
     detect_anomalies_from_result_json,
     extract_adsorbate,
 )
@@ -84,7 +85,7 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
 
     for path in result_files:
         model_name = model_name_from_result_path(path)
-        per_reaction = detect_anomalies_from_result_json(path)
+        per_reaction = load_result_analysis(path)
         rows = [
             {
                 "reaction": reaction,
@@ -204,3 +205,17 @@ def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
     return wide_df.drop_nulls(
         subset=["reference_ads_eng", *mlip_cols, *label_cols, *detail_cols]
     ).sort("reaction")
+
+
+def load_result_analysis(result_path: str | Path) -> dict[str, dict[str, Any]]:
+    payload = load_result_json(result_path)
+    persisted = {
+        reaction: reaction_data[RESULT_ANALYSIS_KEY]
+        for reaction, reaction_data in payload.items()
+        if reaction != "calculation_settings"
+        and isinstance(reaction_data, dict)
+        and isinstance(reaction_data.get(RESULT_ANALYSIS_KEY), dict)
+    }
+    if persisted:
+        return persisted
+    return detect_anomalies_from_result_json(result_path)

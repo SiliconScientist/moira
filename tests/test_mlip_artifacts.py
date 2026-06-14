@@ -11,6 +11,7 @@ from unittest.mock import patch
 from moira.mlip.artifacts import (
     find_result_files,
     load_result_json,
+    load_result_analysis,
     load_wide_predictions,
     mlip_detail_column_name,
     mlip_energy_column_name,
@@ -142,6 +143,7 @@ class MlipArtifactTests(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
+            enrich_result_file(dataset_path=None, result_path=result_path)
 
             wide_df = load_wide_predictions([result_path])
 
@@ -154,6 +156,39 @@ class MlipArtifactTests(unittest.TestCase):
         )
         self.assertEqual(wide_df.get_column("mace_mlip_ads_eng_median").to_list(), [1.1])
         self.assertEqual(wide_df.get_column("mace_label").to_list(), ["normal"])
+
+    def test_load_result_analysis_falls_back_for_unenriched_results(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            result_path = Path(tmp_dir) / "mace_result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {
+                            "chemical_bond_cutoff": 1.25,
+                            "n_crit_relax": 200,
+                        },
+                        "rxn-1->OH*": {
+                            "reference": {"ads_eng": 1.0},
+                            "final": {
+                                "median_num": 0,
+                                "ads_eng_median": 1.1,
+                                "ads_seed_range": 0.0,
+                                "ads_eng_seed_range": 0.0,
+                            },
+                            "0": {
+                                "adslab_steps": 50,
+                                "substrate_displacement": 0.1,
+                                "max_bond_change": 5.0,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            analysis = load_result_analysis(result_path)
+
+        self.assertEqual(analysis["rxn-1->OH*"]["label"], "normal")
 
     def test_enrich_result_file_copies_reaction_metadata(self) -> None:
         with TemporaryDirectory() as tmp_dir:
