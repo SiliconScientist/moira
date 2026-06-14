@@ -18,7 +18,10 @@ from moira.mlip.artifacts import (
     model_name_from_result_path,
     result_file_name,
 )
-from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
+from moira.mlip.result_metadata import (
+    attach_dataset_metadata_to_result_file,
+    enrich_result_file,
+)
 from moira.mlip.result_parsing import (
     RESULT_ANALYSIS_KEY,
     detect_anomalies_from_result_dict,
@@ -152,7 +155,7 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(wide_df.get_column("mace_mlip_ads_eng_median").to_list(), [1.1])
         self.assertEqual(wide_df.get_column("mace_label").to_list(), ["normal"])
 
-    def test_attach_dataset_metadata_to_result_file_copies_reaction_metadata(self) -> None:
+    def test_enrich_result_file_copies_reaction_metadata(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             dataset_path = root / "dataset.json"
@@ -188,7 +191,7 @@ class MlipArtifactTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            attach_dataset_metadata_to_result_file(
+            enrich_result_file(
                 dataset_path=dataset_path,
                 result_path=result_path,
             )
@@ -227,7 +230,7 @@ class MlipArtifactTests(unittest.TestCase):
             },
         )
 
-    def test_attach_dataset_metadata_to_result_file_falls_back_to_dataset_name_and_flat_result_path(self) -> None:
+    def test_enrich_result_file_falls_back_to_dataset_name_and_flat_result_path(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             raw_dir = root / "data" / "raw_data"
@@ -268,7 +271,7 @@ class MlipArtifactTests(unittest.TestCase):
             )
 
             with patch("pathlib.Path.cwd", return_value=root):
-                attach_dataset_metadata_to_result_file(
+                enrich_result_file(
                     dataset_path=None,
                     dataset_name="test_n",
                     result_path=result_dir / "7net-omni_result.json",
@@ -282,7 +285,7 @@ class MlipArtifactTests(unittest.TestCase):
         )
         self.assertIn(RESULT_ANALYSIS_KEY, payload["adslab-000001"])
 
-    def test_attach_dataset_metadata_to_result_file_persists_analysis_without_dataset(self) -> None:
+    def test_enrich_result_file_persists_analysis_without_dataset(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
             result_path = root / "mace_result.json"
@@ -304,7 +307,7 @@ class MlipArtifactTests(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            attach_dataset_metadata_to_result_file(
+            enrich_result_file(
                 dataset_path=None,
                 result_path=result_path,
             )
@@ -314,6 +317,36 @@ class MlipArtifactTests(unittest.TestCase):
             payload["rxn-1->OH*"][RESULT_ANALYSIS_KEY]["label"],
             "energy_anomaly",
         )
+
+    def test_attach_dataset_metadata_to_result_file_remains_alias(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            result_path = root / "mace_result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"chemical_bond_cutoff": 1.25},
+                        "rxn-1->OH*": {
+                            "reference": {"ads_eng": 1.0},
+                            "final": {"ads_eng_median": 1.1, "median_num": 0},
+                            "0": {
+                                "adslab_steps": 5,
+                                "substrate_displacement": 0.1,
+                                "max_bond_change": 5.0,
+                            },
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            attach_dataset_metadata_to_result_file(
+                dataset_path=None,
+                result_path=result_path,
+            )
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+
+        self.assertIn(RESULT_ANALYSIS_KEY, payload["rxn-1->OH*"])
 
 
 class DependencyBoundaryTests(unittest.TestCase):

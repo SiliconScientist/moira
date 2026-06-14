@@ -4,13 +4,10 @@ import json
 from pathlib import Path
 from typing import Any
 
-from moira.mlip.result_parsing import (
-    RESULT_ANALYSIS_KEY,
-    detect_anomalies_from_result_dict,
-)
+from moira.mlip.result_parsing import RESULT_ANALYSIS_KEY, detect_anomalies_from_result_dict
 
 
-def attach_dataset_metadata_to_result_file(
+def enrich_result_file(
     *,
     dataset_path: str | Path | None,
     dataset_name: str | None = None,
@@ -64,6 +61,21 @@ def attach_dataset_metadata_to_result_file(
             json.dumps(result, indent=4) + "\n",
             encoding="utf-8",
         )
+
+
+def attach_dataset_metadata_to_result_file(
+    *,
+    dataset_path: str | Path | None,
+    dataset_name: str | None = None,
+    result_path: str | Path,
+    mlip_name: str | None = None,
+) -> None:
+    enrich_result_file(
+        dataset_path=dataset_path,
+        dataset_name=dataset_name,
+        result_path=result_path,
+        mlip_name=mlip_name,
+    )
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
