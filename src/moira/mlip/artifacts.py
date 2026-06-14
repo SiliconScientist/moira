@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 from typing import Any
+import warnings
 
 import polars as pl
 
@@ -30,6 +31,12 @@ def find_result_files(
     pattern: str = "*/*_result.json",
     exclude_processed: bool = True,
 ) -> list[Path]:
+    warnings.warn(
+        "Directory-based result discovery is a compatibility helper; prefer passing "
+        "explicit result JSON paths to load_wide_predictions().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     candidates = sorted(base_dir.glob(pattern))
     if exclude_processed:
         candidates = [
@@ -76,14 +83,15 @@ def mlip_detail_column_name(model_name: str, detail_name: str) -> str:
     return f"{model_name}_{detail_name}"
 
 
-def load_wide_predictions(result_files: list[Path]) -> pl.DataFrame:
+def load_wide_predictions(result_files: list[str | Path]) -> pl.DataFrame:
+    resolved_result_files = _resolve_result_files(result_files)
     reference_df: pl.DataFrame | None = None
     wide_parts: list[pl.DataFrame] = []
     mlip_cols: list[str] = []
     label_cols: list[str] = []
     detail_cols: list[str] = []
 
-    for path in result_files:
+    for path in resolved_result_files:
         model_name = model_name_from_result_path(path)
         per_reaction = load_result_analysis(path)
         rows = [
@@ -219,3 +227,14 @@ def load_result_analysis(result_path: str | Path) -> dict[str, dict[str, Any]]:
     if persisted:
         return persisted
     return detect_anomalies_from_result_json(result_path)
+
+
+def _resolve_result_files(result_files: list[str | Path]) -> list[Path]:
+    resolved = [Path(path) for path in result_files]
+    if not resolved:
+        raise ValueError("result_files must contain at least one explicit result path")
+    missing = [str(path) for path in resolved if not path.is_file()]
+    if missing:
+        missing_paths = ", ".join(sorted(missing))
+        raise FileNotFoundError(f"Result JSON paths not found: {missing_paths}")
+    return resolved

@@ -7,6 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
+import warnings
 
 from moira.mlip.artifacts import (
     find_result_files,
@@ -104,11 +105,15 @@ class MlipArtifactTests(unittest.TestCase):
             result_path = model_dir / "mace_result.json"
             result_path.write_text(json.dumps({"rxn-1": {"final": {}}}), encoding="utf-8")
 
-            files = find_result_files(base_dir)
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                files = find_result_files(base_dir)
             payload = load_result_json(result_path)
 
         self.assertEqual(files, [result_path])
         self.assertEqual(payload, {"rxn-1": {"final": {}}})
+        self.assertEqual(len(caught), 1)
+        self.assertIs(caught[0].category, DeprecationWarning)
 
     def test_load_wide_predictions_builds_expected_columns(self) -> None:
         with TemporaryDirectory() as tmp_dir:
@@ -145,7 +150,7 @@ class MlipArtifactTests(unittest.TestCase):
             )
             enrich_result_file(dataset_path=None, result_path=result_path)
 
-            wide_df = load_wide_predictions([result_path])
+            wide_df = load_wide_predictions([str(result_path)])
 
         self.assertEqual(wide_df.get_column("reaction").to_list(), ["rxn-1->OH*"])
         self.assertEqual(wide_df.get_column("adsorbate").to_list(), ["OH"])
