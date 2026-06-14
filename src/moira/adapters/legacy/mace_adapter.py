@@ -8,7 +8,7 @@ from catbench.adsorption import AdsorptionCalculation
 from mace.calculators import mace_mp
 
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
-from moira.mlip.result_metadata import attach_dataset_metadata_to_result_file
+from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "mace-mh-1"
@@ -63,7 +63,7 @@ def run(
             benchmark=dataset_name,
         )
         save_directory = Path(adsorption_calc.run())
-        attach_dataset_metadata_to_result_file(
+        enrich_result_file(
             dataset_path=dataset_path,
             dataset_name=dataset_name,
             result_path=save_directory / f"{mlip_name}_result.json",
