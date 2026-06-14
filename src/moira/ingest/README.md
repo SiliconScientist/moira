@@ -85,11 +85,24 @@ This block is additive and does not replace CatBench's existing `raw`, `ref_ads_
 
 MLIP runs consume the emitted adsorption JSON and write `*_result.json` files under the configured result directory.
 
-- Moira copies each reaction's dataset `metadata` block into the corresponding MLIP result entry after CatBench finishes
-- [moira.mlip.result_parsing](/Users/averyhill/github/moira/src/moira/mlip/result_parsing.py:1) preserves that metadata as both `metadata` and `metadata_json`
-- [moira.mlip.artifacts](/Users/averyhill/github/moira/src/moira/mlip/artifacts.py:1) exposes the serialized value as `reaction_metadata_json` in the wide predictions table
+- Moira immediately enriches each reaction entry after CatBench finishes
+- The enriched result entry keeps dataset `metadata` and a persisted `moira_analysis` block with labels, anomaly details, and derived energies
+- [moira.mlip.result_parsing](/Users/averyhill/github/moira/src/moira/mlip/result_parsing.py:1) defines the persisted analysis payload
+- [moira.mlip.artifacts](/Users/averyhill/github/moira/src/moira/mlip/artifacts.py:1) reads that stored analysis into the wide predictions table and only falls back to recomputing it for older unenriched result files
 
-That is the current contract for preserving source metadata from ASE DB ingestion through MLIP result extraction.
+That is the current contract for preserving source metadata and anomaly analysis from ASE DB ingestion through MLIP result extraction.
+
+Moira no longer depends on running:
+
+```python
+from catbench.adsorption import AdsorptionAnalysis
+
+AdsorptionAnalysis().analysis()
+```
+
+as a separate post-processing step. For Moira-managed workflows, the analyzed `*_result.json` file is the source of truth.
+
+When loading results downstream, prefer explicit result JSON paths over directory auto-discovery.
 
 It does not require reaction records or a fully populated bundle.
 
