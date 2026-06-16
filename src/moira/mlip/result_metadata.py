@@ -5,8 +5,6 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from moira.mlip.result_parsing import RESULT_ANALYSIS_KEY, detect_anomalies_from_result_dict
-
 
 def enrich_result_file(
     *,
@@ -15,6 +13,11 @@ def enrich_result_file(
     result_path: str | Path,
     mlip_name: str | None = None,
 ) -> None:
+    from moira.mlip.result_parsing import (
+        RESULT_ANALYSIS_KEY,
+        detect_anomalies_from_result_dict,
+    )
+
     resolved_result_path = _resolve_result_path(
         result_path=Path(result_path),
         mlip_name=mlip_name,

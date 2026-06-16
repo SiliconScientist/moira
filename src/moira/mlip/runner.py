@@ -17,7 +17,6 @@ from moira.mlip.registry import (
     load_config,
     get_model_python,
 )
-from moira.mlip.result_metadata import write_efficiency_summary
 from moira.mlip.shards import slice_json_obj
 
 
@@ -233,6 +232,8 @@ def run_one_task(line: str, config_path: str):
 
         print(f"Running adapter: {model} ({dataset_name})")
         with _catbench_source_on_syspath(resolved_config_path):
+            from moira.mlip.result_metadata import write_efficiency_summary
+
             run_adapter = _load_adapter_callable(model, resolved_config_path)
             time_init = perf_counter()
             run_adapter(
