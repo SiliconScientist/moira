@@ -18,6 +18,7 @@ from moira.adapters.catbench_paths import (
 )
 from moira.__main__ import main
 from moira.config import get_config
+from moira.mlip.artifacts import load_result_json, merge_result_jsons
 from moira.mlip.cli import main as mlip_main
 from moira.mlip.preflight import validate_model_envs
 from moira.mlip.registry import get_model_specs
@@ -1098,6 +1099,147 @@ class MlipRunnerTests(unittest.TestCase):
             str((tmp / "data/results/run" / task_name).resolve()),
         )
         self.assertFalse(Path(captured["dataset_path"]).exists())
+
+    def test_sharded_execution_merges_to_unsharded_result(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_payload = {
+                "rxn-1->OH*": {"value": 1.1},
+                "rxn-2->NH*": {"value": 2.2},
+                "rxn-3->CH*": {"value": 3.3},
+                "rxn-4->O*": {"value": 4.4},
+                "rxn-5->H*": {"value": 5.5},
+            }
+            dataset_path.write_text(
+                json.dumps(dataset_payload) + "\n",
+                encoding="utf-8",
+            )
+            sharded_config_path = tmp / "mlip-sharded.toml"
+            sharded_config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        'results_dir = "data/results/sharded"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "shard_size = 2",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            unsharded_config_path = tmp / "mlip-unsharded.toml"
+            unsharded_config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        'results_dir = "data/results/unsharded"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            sharded_lines = make_task_lines(
+                config_path=sharded_config_path,
+                run_tag="screen",
+                datasets=[str(dataset_path)],
+            )
+            unsharded_lines = make_task_lines(
+                config_path=unsharded_config_path,
+                run_tag="screen",
+                datasets=[str(dataset_path)],
+            )
+
+            shard_assignments: list[list[str]] = []
+            shard_result_paths: list[Path] = []
+
+            def _fake_run(
+                *,
+                model: str,
+                dataset_name: str,
+                dataset_path: str | None = None,
+                device: str = "cpu",
+                config_path: str = "mlip.toml",
+                results_dir_override: str | None = None,
+                **_: object,
+            ) -> None:
+                self.assertEqual(model, "mace")
+                self.assertEqual(device, "cpu")
+                self.assertIsNotNone(dataset_path)
+                dataset_payload_local = json.loads(
+                    Path(dataset_path).read_text(encoding="utf-8")
+                )
+                reactions = list(dataset_payload_local)
+                shard_assignments.append(reactions)
+                output_dir = (
+                    Path(results_dir_override)
+                    if results_dir_override is not None
+                    else Path(config_path).resolve().parent / "adapter_results" / dataset_name
+                )
+                output_dir.mkdir(parents=True, exist_ok=True)
+                result_path = output_dir / "mace_result.json"
+                result_payload = {
+                    "calculation_settings": {"optimizer": "fake"},
+                    **{
+                        reaction: {
+                            "final": {
+                                "ads_eng_median": dataset_payload_local[reaction]["value"]
+                            }
+                        }
+                        for reaction in reactions
+                    },
+                }
+                result_path.write_text(
+                    json.dumps(result_payload, indent=4) + "\n",
+                    encoding="utf-8",
+                )
+                if results_dir_override is not None:
+                    shard_result_paths.append(result_path)
+
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=_fake_run),
+            ):
+                for line in sharded_lines:
+                    run_one_task(line, str(sharded_config_path))
+                run_one_task(unsharded_lines[0], str(unsharded_config_path))
+
+            assigned_reactions = [
+                reaction for shard_reactions in shard_assignments[:-1] for reaction in shard_reactions
+            ]
+            self.assertEqual(sorted(assigned_reactions), sorted(dataset_payload))
+            self.assertEqual(len(assigned_reactions), len(set(assigned_reactions)))
+            self.assertEqual(len(shard_result_paths), 3)
+
+            merged_result = merge_result_jsons(
+                shard_result_paths,
+                output_path=tmp / "merged" / "mace_result.json",
+            )
+            baseline_result = load_result_json(
+                tmp / "adapter_results" / "example" / "mace_result.json"
+            )
+
+        self.assertEqual(merged_result, baseline_result)
 
 
 class CatbenchPathPatchTests(unittest.TestCase):
