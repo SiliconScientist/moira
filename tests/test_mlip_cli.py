@@ -23,7 +23,7 @@ from moira.mlip.preflight import validate_model_envs
 from moira.mlip.registry import get_model_specs
 from moira.mlip.runner import run_one_task
 from moira.mlip.shards import infer_shard_count, shard_bounds, shard_json_obj
-from moira.mlip.tasks import make_task_lines
+from moira.mlip.tasks import make_task_lines, shard_dataset_name
 
 
 class MainDispatchTests(unittest.TestCase):
@@ -212,6 +212,70 @@ class MlipTaskTests(unittest.TestCase):
                     "input_path": str(dev_dataset_path.resolve()),
                 },
             )
+
+    def test_make_task_lines_emit_one_record_per_shard(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "a": {"value": 1},
+                        "b": {"value": 2},
+                        "c": {"value": 3},
+                        "d": {"value": 4},
+                        "e": {"value": 5},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "shard_size = 2",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            lines = [
+                json.loads(line)
+                for line in make_task_lines(
+                    config_path=config_path,
+                    run_tag="dev",
+                    datasets=[str(dataset_path)],
+                )
+            ]
+
+        self.assertEqual(len(lines), 3)
+        self.assertEqual(
+            lines[0],
+            {
+                "model": "mace",
+                "dataset_name": shard_dataset_name(
+                    "example",
+                    shard_index=0,
+                    shard_count=3,
+                ),
+                "input_path": str(dataset_path.resolve()),
+                "shard_index": 0,
+                "shard_count": 3,
+                "shard_start": 0,
+                "shard_stop": 2,
+            },
+        )
+        self.assertEqual(lines[2]["shard_start"], 4)
+        self.assertEqual(lines[2]["shard_stop"], 5)
 
 
 class MlipRegistryTests(unittest.TestCase):
@@ -726,6 +790,7 @@ class MlipRunnerTests(unittest.TestCase):
             dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
+            results_dir_override=None,
         )
 
     def test_run_one_task_dispatches_legacy_adapter_when_selected(self) -> None:
@@ -770,6 +835,7 @@ class MlipRunnerTests(unittest.TestCase):
             dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
+            results_dir_override=None,
         )
 
     def test_run_one_task_accepts_legacy_task_lines(self) -> None:
@@ -809,6 +875,7 @@ class MlipRunnerTests(unittest.TestCase):
             dataset_path="data/raw_data/example.json",
             device="cpu",
             config_path=str(config_path.resolve()),
+            results_dir_override=None,
         )
 
     def test_run_one_task_uses_configured_cpu_device(self) -> None:
@@ -849,7 +916,96 @@ class MlipRunnerTests(unittest.TestCase):
             dataset_path=None,
             device="cpu",
             config_path=str(config_path.resolve()),
+            results_dir_override=None,
         )
+
+    def test_run_one_task_materializes_shard_dataset_and_results_dir(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "a": {"value": 1},
+                        "b": {"value": 2},
+                        "c": {"value": 3},
+                        "d": {"value": 4},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        'results_dir = "data/results/run"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            task_name = shard_dataset_name("example", shard_index=1, shard_count=2)
+            captured = {}
+
+            def _capture_runner(**kwargs):
+                shard_path = Path(kwargs["dataset_path"])
+                captured["dataset_path"] = str(shard_path)
+                captured["payload"] = json.loads(shard_path.read_text(encoding="utf-8"))
+                captured["results_dir_override"] = kwargs["results_dir_override"]
+
+            mock_runner = Mock(side_effect=_capture_runner)
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=mock_runner),
+            ):
+                run_one_task(
+                    json.dumps(
+                        {
+                            "model": "mace",
+                            "dataset_name": task_name,
+                            "input_path": str(dataset_path),
+                            "shard_index": 1,
+                            "shard_count": 2,
+                            "shard_start": 2,
+                            "shard_stop": 4,
+                        }
+                    ),
+                    str(config_path),
+                )
+
+        mock_runner.assert_called_once()
+        kwargs = mock_runner.call_args.kwargs
+        self.assertEqual(kwargs["dataset_name"], task_name)
+        self.assertEqual(kwargs["device"], "cpu")
+        self.assertEqual(kwargs["config_path"], str(config_path.resolve()))
+        self.assertEqual(
+            kwargs["results_dir_override"],
+            str((tmp / "data/results/run" / task_name).resolve()),
+        )
+        self.assertEqual(
+            captured["payload"],
+            {
+                "c": {"value": 3},
+                "d": {"value": 4},
+            },
+        )
+        self.assertEqual(
+            captured["results_dir_override"],
+            str((tmp / "data/results/run" / task_name).resolve()),
+        )
+        self.assertFalse(Path(captured["dataset_path"]).exists())
 
 
 class CatbenchPathPatchTests(unittest.TestCase):
@@ -986,4 +1142,5 @@ class CatbenchPathPatchTests(unittest.TestCase):
             dataset_path=None,
             device="cpu",
             config_path=str(config_path.resolve()),
+            results_dir_override=None,
         )

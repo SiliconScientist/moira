@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Iterable
 
 from moira.mlip.registry import get_model_specs, load_config
-from moira.mlip.shards import slice_json_obj
+from moira.mlip.shards import infer_shard_count, shard_bounds, slice_json_obj
 
 
 def default_run_tag(cfg: dict) -> str:
@@ -51,6 +51,11 @@ def dataset_name_from_path(p: Path) -> str:
     return p.stem
 
 
+def shard_dataset_name(dataset_name: str, *, shard_index: int, shard_count: int) -> str:
+    width = max(2, len(str(max(shard_count - 1, 0))))
+    return f"{dataset_name}_shard_{shard_index:0{width}d}_of_{shard_count:0{width}d}"
+
+
 def maybe_make_dev_dataset(dpath: Path, cfg: dict) -> Path:
     mlip = cfg.get("mlip", {})
     dev_run = bool(mlip.get("dev_run", False))
@@ -87,6 +92,8 @@ def make_task_lines(
     cfg = load_config(config_path)
     mlip_cfg = cfg.get("mlip", {})
     dev_run = bool(mlip_cfg.get("dev_run", False))
+    shard_size = mlip_cfg.get("shard_size")
+    num_shards = mlip_cfg.get("num_shards")
     specs = get_model_specs(config_path)
     dataset_paths = resolve_datasets(datasets, cfg)
     lines: list[str] = []
@@ -96,17 +103,67 @@ def make_task_lines(
         dname_task = dname_base
         if dev_run and not dname_task.endswith("_dev"):
             dname_task = f"{dname_task}_dev"
+        shard_records = _dataset_shard_records(
+            task_dataset_path,
+            dataset_name=dname_task,
+            shard_size=shard_size,
+            num_shards=num_shards,
+        )
         for model in specs:
-            lines.append(
-                json.dumps(
-                    {
-                        "model": model,
-                        "dataset_name": dname_task,
-                        "input_path": str(task_dataset_path.resolve()),
-                    }
+            for shard_record in shard_records:
+                lines.append(
+                    json.dumps(
+                        {
+                            "model": model,
+                            **shard_record,
+                        }
+                    )
                 )
-            )
     return lines
+
+
+def _dataset_shard_records(
+    dataset_path: Path,
+    *,
+    dataset_name: str,
+    shard_size: int | None,
+    num_shards: int | None,
+) -> list[dict[str, object]]:
+    resolved_input_path = str(dataset_path.resolve())
+    if shard_size is None and num_shards is None:
+        return [
+            {
+                "dataset_name": dataset_name,
+                "input_path": resolved_input_path,
+            }
+        ]
+
+    with dataset_path.open("r", encoding="utf-8") as f:
+        obj = json.load(f)
+    shard_count = infer_shard_count(obj, shard_size=shard_size, num_shards=num_shards)
+    records: list[dict[str, object]] = []
+    for shard_index in range(shard_count):
+        start, stop = shard_bounds(
+            obj,
+            shard_size=shard_size,
+            num_shards=num_shards,
+            shard_index=shard_index,
+        )
+        records.append(
+            {
+                "dataset_name": shard_dataset_name(
+                    dataset_name,
+                    shard_index=shard_index,
+                    shard_count=shard_count,
+                ),
+                "input_path": resolved_input_path,
+                "shard_index": shard_index,
+                "shard_count": shard_count,
+                "shard_start": start,
+                "shard_stop": stop,
+            }
+        )
+    return records
 
 
 def write_tasks(out_path: str | Path, lines: Iterable[str]) -> None:

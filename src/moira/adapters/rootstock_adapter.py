@@ -52,6 +52,7 @@ def run(
     device: str = "cuda",
     config_path: str = "mlip.toml",
     n_calcs: int = 3,
+    results_dir_override: str | None = None,
 ) -> None:
     from rootstock import RootstockCalculator
 
@@ -59,10 +60,14 @@ def run(
     config = load_config(resolved_config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
     dev_run = bool(config.get("mlip", {}).get("dev_run", False))
-    results_dir = resolve_results_dir(
-        config.get("mlip", {}).get("results_dir"),
-        config_path=resolved_config_path,
-        dev_run=dev_run,
+    results_dir = (
+        Path(results_dir_override).resolve()
+        if results_dir_override is not None
+        else resolve_results_dir(
+            config.get("mlip", {}).get("results_dir"),
+            config_path=resolved_config_path,
+            dev_run=dev_run,
+        )
     )
     rootstock_cfg = config.get("mlip", {}).get("rootstock", {})
     root = rootstock_cfg.get("root", "/projects/bchg/rootstock")
