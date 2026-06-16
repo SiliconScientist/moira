@@ -316,6 +316,59 @@ class MlipTaskTests(unittest.TestCase):
         self.assertEqual(lines[2]["shard_start"], 4)
         self.assertEqual(lines[2]["shard_stop"], 5)
 
+    def test_make_task_lines_can_select_one_configured_shard(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "a": {"value": 1},
+                        "b": {"value": 2},
+                        "c": {"value": 3},
+                        "d": {"value": 4},
+                        "e": {"value": 5},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "num_shards = 3",
+                        "shard_index = 1",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            lines = [
+                json.loads(line)
+                for line in make_task_lines(
+                    config_path=config_path,
+                    run_tag="debug",
+                    datasets=[str(dataset_path)],
+                )
+            ]
+
+        self.assertEqual(len(lines), 1)
+        self.assertEqual(
+            lines[0]["dataset_name"],
+            shard_dataset_name("example", shard_index=1, shard_count=3),
+        )
+        self.assertEqual(lines[0]["shard_start"], 1)
+        self.assertEqual(lines[0]["shard_stop"], 3)
+
 
 class MlipRegistryTests(unittest.TestCase):
     def test_model_specs_expose_importable_adapter_callable(self) -> None:

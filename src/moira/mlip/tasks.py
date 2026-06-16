@@ -94,6 +94,7 @@ def make_task_lines(
     dev_run = bool(mlip_cfg.get("dev_run", False))
     shard_size = mlip_cfg.get("shard_size")
     num_shards = mlip_cfg.get("num_shards")
+    shard_index = mlip_cfg.get("shard_index")
     specs = get_model_specs(config_path)
     dataset_paths = resolve_datasets(datasets, cfg)
     lines: list[str] = []
@@ -108,6 +109,7 @@ def make_task_lines(
             dataset_name=dname_task,
             shard_size=shard_size,
             num_shards=num_shards,
+            shard_index=shard_index,
         )
         for model in specs:
             for shard_record in shard_records:
@@ -128,6 +130,7 @@ def _dataset_shard_records(
     dataset_name: str,
     shard_size: int | None,
     num_shards: int | None,
+    shard_index: int | None,
 ) -> list[dict[str, object]]:
     resolved_input_path = str(dataset_path.resolve())
     if shard_size is None and num_shards is None:
@@ -142,22 +145,23 @@ def _dataset_shard_records(
         obj = json.load(f)
     shard_count = infer_shard_count(obj, shard_size=shard_size, num_shards=num_shards)
     records: list[dict[str, object]] = []
-    for shard_index in range(shard_count):
+    shard_indexes = range(shard_count) if shard_index is None else [shard_index]
+    for current_shard_index in shard_indexes:
         start, stop = shard_bounds(
             obj,
             shard_size=shard_size,
             num_shards=num_shards,
-            shard_index=shard_index,
+            shard_index=current_shard_index,
         )
         records.append(
             {
                 "dataset_name": shard_dataset_name(
                     dataset_name,
-                    shard_index=shard_index,
+                    shard_index=current_shard_index,
                     shard_count=shard_count,
                 ),
                 "input_path": resolved_input_path,
-                "shard_index": shard_index,
+                "shard_index": current_shard_index,
                 "shard_count": shard_count,
                 "shard_start": start,
                 "shard_stop": stop,
