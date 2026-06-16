@@ -20,6 +20,39 @@ def main(argv=None):
 
         run_one_task(args.line, args.config)
         return
+    if argv and argv[0] == "make-tasks":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Write MLIP task lines from config",
+        )
+        parser.add_argument("--config", default="mlip.toml")
+        parser.add_argument("--run-tag", default="run")
+        parser.add_argument("--out", required=True)
+        parser.add_argument("datasets", nargs="*", help="Optional dataset paths")
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.tasks import make_tasks
+
+        make_tasks(
+            config_path=args.config,
+            run_tag=args.run_tag,
+            out_path=args.out,
+            datasets=args.datasets,
+        )
+        return
+    if argv and argv[0] == "merge-shards":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Merge shard result JSONs into one result file",
+        )
+        parser.add_argument("--out", required=True)
+        parser.add_argument("result_files", nargs="+", help="Shard result JSON paths")
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.artifacts import merge_result_jsons
+
+        merge_result_jsons(args.result_files, output_path=args.out)
+        return
 
     parser = argparse.ArgumentParser(
         prog="moira",

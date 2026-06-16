@@ -117,6 +117,45 @@ class MlipCliTests(unittest.TestCase):
             "mlip.toml",
         )
 
+    def test_make_tasks_subcommand_delegates_to_task_writer(self) -> None:
+        with patch("moira.mlip.tasks.make_tasks") as mock_make_tasks:
+            mlip_main(
+                [
+                    "make-tasks",
+                    "--config",
+                    "mlip.toml",
+                    "--run-tag",
+                    "sharded",
+                    "--out",
+                    "slurm_output/tasks.jsonl",
+                    "dataset.json",
+                ]
+            )
+
+        mock_make_tasks.assert_called_once_with(
+            config_path="mlip.toml",
+            run_tag="sharded",
+            out_path="slurm_output/tasks.jsonl",
+            datasets=["dataset.json"],
+        )
+
+    def test_merge_shards_subcommand_delegates_to_artifact_merger(self) -> None:
+        with patch("moira.mlip.artifacts.merge_result_jsons") as mock_merge_result_jsons:
+            mlip_main(
+                [
+                    "merge-shards",
+                    "--out",
+                    "data/results/mace_result.json",
+                    "part-0.json",
+                    "part-1.json",
+                ]
+            )
+
+        mock_merge_result_jsons.assert_called_once_with(
+            ["part-0.json", "part-1.json"],
+            output_path="data/results/mace_result.json",
+        )
+
 
 class MlipTaskTests(unittest.TestCase):
     def test_make_task_lines_emit_json_records(self) -> None:
