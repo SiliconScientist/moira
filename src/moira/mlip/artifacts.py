@@ -63,6 +63,52 @@ def load_result_json(result_path: str | Path) -> dict[str, Any]:
     return payload
 
 
+def load_efficiency_json(efficiency_path: str | Path) -> dict[str, Any]:
+    path = Path(efficiency_path)
+    with path.open("r", encoding="utf-8") as handle:
+        payload = json.load(handle)
+    if not isinstance(payload, dict):
+        raise TypeError(
+            f"Expected efficiency JSON top-level to be an object/dict, got {type(payload).__name__}"
+        )
+    return payload
+
+
+def load_efficiency_table(efficiency_files: list[str | Path]) -> pl.DataFrame:
+    resolved_efficiency_files = _resolve_efficiency_files(efficiency_files)
+    rows = []
+    for path in resolved_efficiency_files:
+        payload = load_efficiency_json(path)
+        payload = dict(payload)
+        payload["efficiency_path"] = str(path)
+        rows.append(payload)
+    if not rows:
+        raise RuntimeError("No efficiency rows were loaded.")
+    return pl.from_dicts(rows).sort(
+        by=["model_name", "dataset_name", "shard_index"],
+        descending=[False, False, False],
+        nulls_last=True,
+    )
+
+
+def write_efficiency_table(
+    efficiency_files: list[str | Path],
+    *,
+    output_path: str | Path,
+) -> Path:
+    table = load_efficiency_table(efficiency_files)
+    target = Path(output_path)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    suffix = target.suffix.lower()
+    if suffix == ".csv":
+        table.write_csv(target)
+    elif suffix == ".json":
+        target.write_text(table.write_json(), encoding="utf-8")
+    else:
+        raise ValueError("Efficiency summary output must end with .csv or .json")
+    return target
+
+
 def merge_result_jsons(
     result_files: list[str | Path],
     *,
@@ -282,4 +328,17 @@ def _resolve_result_files(result_files: list[str | Path]) -> list[Path]:
     if missing:
         missing_paths = ", ".join(sorted(missing))
         raise FileNotFoundError(f"Result JSON paths not found: {missing_paths}")
+    return resolved
+
+
+def _resolve_efficiency_files(efficiency_files: list[str | Path]) -> list[Path]:
+    resolved = [Path(path) for path in efficiency_files]
+    if not resolved:
+        raise ValueError(
+            "efficiency_files must contain at least one explicit efficiency path"
+        )
+    missing = [str(path) for path in resolved if not path.is_file()]
+    if missing:
+        missing_paths = ", ".join(sorted(missing))
+        raise FileNotFoundError(f"Efficiency JSON paths not found: {missing_paths}")
     return resolved

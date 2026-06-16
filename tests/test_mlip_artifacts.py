@@ -11,6 +11,8 @@ import warnings
 
 from moira.mlip.artifacts import (
     find_result_files,
+    load_efficiency_json,
+    load_efficiency_table,
     load_result_json,
     load_result_analysis,
     load_wide_predictions,
@@ -20,6 +22,7 @@ from moira.mlip.artifacts import (
     mlip_label_column_name,
     model_name_from_result_path,
     result_file_name,
+    write_efficiency_table,
 )
 from moira.mlip.result_metadata import (
     attach_dataset_metadata_to_result_file,
@@ -116,6 +119,55 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(payload, {"rxn-1": {"final": {}}})
         self.assertEqual(len(caught), 1)
         self.assertIs(caught[0].category, DeprecationWarning)
+
+    def test_load_and_write_efficiency_table(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            eff_a = root / "a_efficiency.json"
+            eff_b = root / "b_efficiency.json"
+            eff_a.write_text(
+                json.dumps(
+                    {
+                        "model_name": "mace",
+                        "dataset_name": "example_shard_01_of_02",
+                        "shard_index": 1,
+                        "completed_reaction_count": 2,
+                        "task_wall_seconds": 20.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            eff_b.write_text(
+                json.dumps(
+                    {
+                        "model_name": "mace",
+                        "dataset_name": "example_shard_00_of_02",
+                        "shard_index": 0,
+                        "completed_reaction_count": 3,
+                        "task_wall_seconds": 15.0,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            payload = load_efficiency_json(eff_a)
+            table = load_efficiency_table([eff_a, eff_b])
+            csv_path = write_efficiency_table(
+                [eff_a, eff_b],
+                output_path=root / "efficiency.csv",
+            )
+            csv_contents = csv_path.read_text(encoding="utf-8")
+
+        self.assertEqual(payload["completed_reaction_count"], 2)
+        self.assertEqual(
+            table.get_column("dataset_name").to_list(),
+            ["example_shard_00_of_02", "example_shard_01_of_02"],
+        )
+        self.assertEqual(
+            table.get_column("completed_reaction_count").to_list(),
+            [3, 2],
+        )
+        self.assertIn("completed_reaction_count", csv_contents)
 
     def test_load_wide_predictions_builds_expected_columns(self) -> None:
         with TemporaryDirectory() as tmp_dir:

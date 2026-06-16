@@ -157,6 +157,23 @@ class MlipCliTests(unittest.TestCase):
             output_path="data/results/mace_result.json",
         )
 
+    def test_summarize_efficiency_subcommand_delegates_to_writer(self) -> None:
+        with patch("moira.mlip.artifacts.write_efficiency_table") as mock_write_efficiency_table:
+            mlip_main(
+                [
+                    "summarize-efficiency",
+                    "--out",
+                    "data/results/efficiency.csv",
+                    "part-0_efficiency.json",
+                    "part-1_efficiency.json",
+                ]
+            )
+
+        mock_write_efficiency_table.assert_called_once_with(
+            ["part-0_efficiency.json", "part-1_efficiency.json"],
+            output_path="data/results/efficiency.csv",
+        )
+
 
 class MlipTaskTests(unittest.TestCase):
     def test_make_task_lines_emit_json_records(self) -> None:

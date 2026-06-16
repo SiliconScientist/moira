@@ -53,6 +53,23 @@ def main(argv=None):
 
         merge_result_jsons(args.result_files, output_path=args.out)
         return
+    if argv and argv[0] == "summarize-efficiency":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Aggregate shard efficiency JSONs into one table",
+        )
+        parser.add_argument("--out", required=True)
+        parser.add_argument(
+            "efficiency_files",
+            nargs="+",
+            help="Efficiency JSON paths to aggregate",
+        )
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.artifacts import write_efficiency_table
+
+        write_efficiency_table(args.efficiency_files, output_path=args.out)
+        return
 
     parser = argparse.ArgumentParser(
         prog="moira",
