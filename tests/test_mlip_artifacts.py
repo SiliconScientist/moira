@@ -14,6 +14,7 @@ from moira.mlip.artifacts import (
     load_result_json,
     load_result_analysis,
     load_wide_predictions,
+    merge_result_jsons,
     mlip_detail_column_name,
     mlip_energy_column_name,
     mlip_label_column_name,
@@ -194,6 +195,62 @@ class MlipArtifactTests(unittest.TestCase):
             analysis = load_result_analysis(result_path)
 
         self.assertEqual(analysis["rxn-1->OH*"]["label"], "normal")
+
+    def test_merge_result_jsons_combines_shard_outputs(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            shard_a = root / "mace-shard-a.json"
+            shard_b = root / "mace-shard-b.json"
+            merged_path = root / "merged" / "mace_result.json"
+            shard_a.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"n_crit_relax": 200},
+                        "rxn-1->OH*": {"final": {"ads_eng_median": 1.1}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            shard_b.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"n_crit_relax": 200},
+                        "rxn-2->NH*": {"final": {"ads_eng_median": 2.2}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            merged = merge_result_jsons([shard_a, shard_b], output_path=merged_path)
+            written = json.loads(merged_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(
+            merged,
+            {
+                "calculation_settings": {"n_crit_relax": 200},
+                "rxn-1->OH*": {"final": {"ads_eng_median": 1.1}},
+                "rxn-2->NH*": {"final": {"ads_eng_median": 2.2}},
+            },
+        )
+        self.assertEqual(written, merged)
+
+    def test_merge_result_jsons_rejects_duplicate_reactions(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            shard_a = root / "mace-shard-a.json"
+            shard_b = root / "mace-shard-b.json"
+            payload = {
+                "calculation_settings": {"n_crit_relax": 200},
+                "rxn-1->OH*": {"final": {"ads_eng_median": 1.1}},
+            }
+            shard_a.write_text(json.dumps(payload), encoding="utf-8")
+            shard_b.write_text(json.dumps(payload), encoding="utf-8")
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "Duplicate reaction key across shard results",
+            ):
+                merge_result_jsons([shard_a, shard_b])
 
     def test_enrich_result_file_copies_reaction_metadata(self) -> None:
         with TemporaryDirectory() as tmp_dir:

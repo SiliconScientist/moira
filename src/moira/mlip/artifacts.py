@@ -63,6 +63,51 @@ def load_result_json(result_path: str | Path) -> dict[str, Any]:
     return payload
 
 
+def merge_result_jsons(
+    result_files: list[str | Path],
+    *,
+    output_path: str | Path | None = None,
+) -> dict[str, Any]:
+    resolved_result_files = _resolve_result_files(result_files)
+    merged: dict[str, Any] = {}
+    merged_settings: dict[str, Any] | None = None
+
+    for path in resolved_result_files:
+        payload = load_result_json(path)
+        settings = payload.get("calculation_settings")
+        if settings is not None:
+            if not isinstance(settings, dict):
+                raise TypeError(
+                    f"Expected calculation_settings in {path} to be a dict, "
+                    f"got {type(settings).__name__}"
+                )
+            if merged_settings is None:
+                merged_settings = settings
+            elif merged_settings != settings:
+                raise ValueError(
+                    f"calculation_settings differ in shard result {path}"
+                )
+
+        for reaction, reaction_data in payload.items():
+            if reaction == "calculation_settings":
+                continue
+            if reaction in merged:
+                raise ValueError(f"Duplicate reaction key across shard results: {reaction}")
+            merged[reaction] = reaction_data
+
+    result: dict[str, Any] = {}
+    if merged_settings is not None:
+        result["calculation_settings"] = merged_settings
+    result.update(dict(sorted(merged.items())))
+
+    if output_path is not None:
+        target = Path(output_path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(json.dumps(result, indent=4) + "\n", encoding="utf-8")
+
+    return result
+
+
 def result_file_name(model_name: str) -> str:
     return f"{model_name}_result.json"
 
