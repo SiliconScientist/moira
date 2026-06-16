@@ -5,6 +5,7 @@ import json
 import os
 import sys
 from contextlib import ExitStack, contextmanager
+from time import perf_counter
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -16,6 +17,7 @@ from moira.mlip.registry import (
     load_config,
     get_model_python,
 )
+from moira.mlip.result_metadata import write_efficiency_summary
 from moira.mlip.shards import slice_json_obj
 
 
@@ -211,6 +213,13 @@ def _task_results_dir(task: dict[str, str], config_path: str) -> str | None:
     return str((configured_results_dir / task["dataset_name"]).resolve())
 
 
+def _task_mlip_name(model: str, config_path: str) -> str | None:
+    config = load_config(config_path)
+    spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
+    mlip_name = spec.get("mlip_name")
+    return str(mlip_name) if mlip_name is not None else None
+
+
 def run_one_task(line: str, config_path: str):
     task = _parse_task_record(line)
     model = task["model"]
@@ -220,10 +229,12 @@ def run_one_task(line: str, config_path: str):
     with ExitStack() as stack:
         dataset_path, dataset_name = _materialize_task_dataset(task, stack=stack)
         results_dir_override = _task_results_dir(task, resolved_config_path)
+        mlip_name = _task_mlip_name(model, resolved_config_path)
 
         print(f"Running adapter: {model} ({dataset_name})")
         with _catbench_source_on_syspath(resolved_config_path):
             run_adapter = _load_adapter_callable(model, resolved_config_path)
+            time_init = perf_counter()
             run_adapter(
                 model=model,
                 dataset_name=dataset_name,
@@ -231,4 +242,20 @@ def run_one_task(line: str, config_path: str):
                 device=device,
                 config_path=resolved_config_path,
                 results_dir_override=results_dir_override,
+            )
+            task_wall_seconds = perf_counter() - time_init
+            result_dir = (
+                Path(results_dir_override)
+                if results_dir_override is not None
+                else Path.cwd() / "result" / (mlip_name or model)
+            )
+            write_efficiency_summary(
+                dataset_path=dataset_path,
+                dataset_name=dataset_name,
+                result_path=result_dir / f"{mlip_name or model}_result.json",
+                mlip_name=mlip_name,
+                model_name=model,
+                task_wall_seconds=task_wall_seconds,
+                shard_index=_task_int(task, "shard_index"),
+                shard_count=_task_int(task, "shard_count"),
             )

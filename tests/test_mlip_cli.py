@@ -1241,6 +1241,94 @@ class MlipRunnerTests(unittest.TestCase):
 
         self.assertEqual(merged_result, baseline_result)
 
+    def test_run_one_task_writes_efficiency_summary(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps({"rxn-1->OH*": {"value": 1.1}}) + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        'results_dir = "data/results/run"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            def _fake_run(**kwargs):
+                output_dir = Path(kwargs["results_dir_override"])
+                output_dir.mkdir(parents=True, exist_ok=True)
+                (output_dir / "mace-mh-1_result.json").write_text(
+                    json.dumps(
+                        {
+                            "calculation_settings": {"optimizer": "fake"},
+                            "rxn-1->OH*": {
+                                "final": {
+                                    "time_total_slab": 1.0,
+                                    "time_total_adslab": 2.0,
+                                    "steps_total_slab": 3,
+                                    "steps_total_adslab": 4,
+                                    "step_weighted_atoms": 5.0,
+                                    "time_per_step_per_atom": 0.1,
+                                }
+                            },
+                        }
+                    )
+                    + "\n",
+                    encoding="utf-8",
+                )
+
+            task_name = shard_dataset_name("example", shard_index=0, shard_count=1)
+            with patch(
+                "moira.mlip.runner.importlib.import_module",
+                return_value=SimpleNamespace(run=_fake_run),
+            ):
+                run_one_task(
+                    json.dumps(
+                        {
+                            "model": "mace",
+                            "dataset_name": task_name,
+                            "input_path": str(dataset_path),
+                            "shard_index": 0,
+                            "shard_count": 1,
+                            "shard_start": 0,
+                            "shard_stop": 1,
+                        }
+                    ),
+                    str(config_path),
+                )
+
+            summary_path = (
+                tmp
+                / "data/results/run"
+                / task_name
+                / "mace-mh-1_efficiency.json"
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["model_name"], "mace")
+        self.assertEqual(summary["mlip_name"], "mace-mh-1")
+        self.assertEqual(summary["completed_reaction_count"], 1)
+        self.assertEqual(summary["dataset_reaction_count"], 1)
+        self.assertEqual(summary["total_relaxation_time_seconds"], 3.0)
+        self.assertEqual(summary["total_relaxation_steps"], 7)
+
 
 class CatbenchPathPatchTests(unittest.TestCase):
     def test_resolve_results_dir_resolves_relative_to_config(self) -> None:

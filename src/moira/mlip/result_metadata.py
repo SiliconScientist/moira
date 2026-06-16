@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -76,6 +77,115 @@ def attach_dataset_metadata_to_result_file(
         result_path=result_path,
         mlip_name=mlip_name,
     )
+
+
+def write_efficiency_summary(
+    *,
+    dataset_path: str | Path | None,
+    dataset_name: str | None = None,
+    result_path: str | Path,
+    mlip_name: str | None = None,
+    model_name: str | None = None,
+    task_wall_seconds: float | None = None,
+    shard_index: int | None = None,
+    shard_count: int | None = None,
+) -> Path | None:
+    resolved_result_path = _resolve_result_path(
+        result_path=Path(result_path),
+        mlip_name=mlip_name,
+    )
+    if resolved_result_path is None:
+        return None
+    resolved_dataset_path = _resolve_dataset_path(
+        dataset_path=dataset_path,
+        dataset_name=dataset_name,
+    )
+    result = _load_json_object(resolved_result_path)
+    dataset = (
+        _load_json_object(resolved_dataset_path)
+        if resolved_dataset_path is not None
+        else None
+    )
+
+    reactions = [
+        (reaction, reaction_data)
+        for reaction, reaction_data in result.items()
+        if reaction != "calculation_settings" and isinstance(reaction_data, dict)
+    ]
+    reaction_count = len(reactions)
+    total_slab_time = 0.0
+    total_adslab_time = 0.0
+    total_slab_steps = 0
+    total_adslab_steps = 0
+    total_atom_steps = 0.0
+    time_per_step_per_atom_values: list[float] = []
+
+    for _reaction, reaction_data in reactions:
+        final = reaction_data.get("final", {})
+        if not isinstance(final, dict):
+            continue
+        total_slab_time += float(final.get("time_total_slab", 0.0) or 0.0)
+        total_adslab_time += float(final.get("time_total_adslab", 0.0) or 0.0)
+        total_slab_steps += int(final.get("steps_total_slab", 0) or 0)
+        total_adslab_steps += int(final.get("steps_total_adslab", 0) or 0)
+        total_steps = float(final.get("steps_total_slab", 0) or 0) + float(
+            final.get("steps_total_adslab", 0) or 0
+        )
+        step_weighted_atoms = float(final.get("step_weighted_atoms", 0.0) or 0.0)
+        total_atom_steps += total_steps * step_weighted_atoms
+        time_per_step_per_atom = final.get("time_per_step_per_atom")
+        if time_per_step_per_atom is not None:
+            time_per_step_per_atom_values.append(float(time_per_step_per_atom))
+
+    total_relaxation_time = total_slab_time + total_adslab_time
+    total_relaxation_steps = total_slab_steps + total_adslab_steps
+    dataset_reaction_count = len(dataset) if dataset is not None else None
+
+    summary = {
+        "created_at_utc": datetime.now(UTC).isoformat(),
+        "model_name": model_name,
+        "mlip_name": mlip_name,
+        "dataset_name": dataset_name,
+        "dataset_path": str(resolved_dataset_path) if resolved_dataset_path is not None else None,
+        "result_path": str(resolved_result_path),
+        "shard_index": shard_index,
+        "shard_count": shard_count,
+        "dataset_reaction_count": dataset_reaction_count,
+        "completed_reaction_count": reaction_count,
+        "task_wall_seconds": task_wall_seconds,
+        "task_wall_hours": (
+            task_wall_seconds / 3600.0 if task_wall_seconds is not None else None
+        ),
+        "reactions_per_hour_wall": (
+            (reaction_count * 3600.0 / task_wall_seconds)
+            if task_wall_seconds and reaction_count > 0
+            else None
+        ),
+        "total_relaxation_time_seconds": total_relaxation_time,
+        "total_slab_relaxation_time_seconds": total_slab_time,
+        "total_adslab_relaxation_time_seconds": total_adslab_time,
+        "total_relaxation_steps": total_relaxation_steps,
+        "total_slab_relaxation_steps": total_slab_steps,
+        "total_adslab_relaxation_steps": total_adslab_steps,
+        "total_atom_steps": total_atom_steps,
+        "mean_relaxation_time_seconds_per_reaction": (
+            total_relaxation_time / reaction_count if reaction_count > 0 else None
+        ),
+        "mean_relaxation_steps_per_reaction": (
+            total_relaxation_steps / reaction_count if reaction_count > 0 else None
+        ),
+        "mean_time_per_step_per_atom_seconds": (
+            sum(time_per_step_per_atom_values) / len(time_per_step_per_atom_values)
+            if time_per_step_per_atom_values
+            else None
+        ),
+    }
+
+    summary_path = resolved_result_path.with_name(
+        resolved_result_path.name.removesuffix("_result.json") + "_efficiency.json"
+    )
+    summary_path.write_text(json.dumps(summary, indent=4) + "\n", encoding="utf-8")
+    return summary_path
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:

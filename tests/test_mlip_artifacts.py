@@ -24,6 +24,7 @@ from moira.mlip.artifacts import (
 from moira.mlip.result_metadata import (
     attach_dataset_metadata_to_result_file,
     enrich_result_file,
+    write_efficiency_summary,
 )
 from moira.mlip.result_parsing import (
     RESULT_ANALYSIS_KEY,
@@ -414,6 +415,72 @@ class MlipArtifactTests(unittest.TestCase):
             payload["rxn-1->OH*"][RESULT_ANALYSIS_KEY]["label"],
             "energy_anomaly",
         )
+
+    def test_write_efficiency_summary_captures_runtime_quantities(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            dataset_path = root / "dataset.json"
+            result_path = root / "mace_result.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "rxn-1->OH*": {"metadata": {"id": 1}},
+                        "rxn-2->NH*": {"metadata": {"id": 2}},
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "calculation_settings": {"chemical_bond_cutoff": 1.25},
+                        "rxn-1->OH*": {
+                            "final": {
+                                "time_total_slab": 2.0,
+                                "time_total_adslab": 3.0,
+                                "steps_total_slab": 4,
+                                "steps_total_adslab": 6,
+                                "step_weighted_atoms": 10.0,
+                                "time_per_step_per_atom": 0.05,
+                            }
+                        },
+                        "rxn-2->NH*": {
+                            "final": {
+                                "time_total_slab": 1.0,
+                                "time_total_adslab": 5.0,
+                                "steps_total_slab": 2,
+                                "steps_total_adslab": 8,
+                                "step_weighted_atoms": 12.0,
+                                "time_per_step_per_atom": 0.04,
+                            }
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            summary_path = write_efficiency_summary(
+                dataset_path=dataset_path,
+                dataset_name="example",
+                result_path=result_path,
+                mlip_name="mace",
+                model_name="mace",
+                task_wall_seconds=20.0,
+                shard_index=1,
+                shard_count=5,
+            )
+            summary = json.loads(summary_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(summary["dataset_reaction_count"], 2)
+        self.assertEqual(summary["completed_reaction_count"], 2)
+        self.assertEqual(summary["task_wall_seconds"], 20.0)
+        self.assertEqual(summary["reactions_per_hour_wall"], 360.0)
+        self.assertEqual(summary["total_relaxation_time_seconds"], 11.0)
+        self.assertEqual(summary["total_relaxation_steps"], 20)
+        self.assertEqual(summary["total_atom_steps"], 220.0)
+        self.assertEqual(summary["mean_relaxation_steps_per_reaction"], 10.0)
+        self.assertEqual(summary["shard_index"], 1)
+        self.assertEqual(summary["shard_count"], 5)
 
     def test_attach_dataset_metadata_to_result_file_remains_alias(self) -> None:
         with TemporaryDirectory() as tmp_dir:
