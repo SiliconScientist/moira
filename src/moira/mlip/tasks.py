@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Iterable
 
 from moira.mlip.registry import get_model_specs, load_config
+from moira.mlip.shards import slice_json_obj
 
 
 def default_run_tag(cfg: dict) -> str:
@@ -50,21 +51,6 @@ def dataset_name_from_path(p: Path) -> str:
     return p.stem
 
 
-def _slice_json_obj(obj: Any, n: int) -> Any:
-    # Case 1: list at top-level
-    if isinstance(obj, list):
-        return obj[:n]
-
-    # Case 2: dict at top-level (your case)
-    if isinstance(obj, dict):
-        # If dict values look like records, take first n items.
-        # JSON load preserves order in modern Python.
-        items = list(obj.items())[:n]
-        return dict(items)
-
-    raise TypeError(f"Dev slicing expects a JSON list or dict; got {type(obj)}")
-
-
 def maybe_make_dev_dataset(dpath: Path, cfg: dict) -> Path:
     mlip = cfg.get("mlip", {})
     dev_run = bool(mlip.get("dev_run", False))
@@ -85,7 +71,7 @@ def maybe_make_dev_dataset(dpath: Path, cfg: dict) -> Path:
         return out
     with dpath.open("r", encoding="utf-8") as f:
         obj = json.load(f)
-    sliced = _slice_json_obj(obj, dev_n)
+    sliced = slice_json_obj(obj, start=0, stop=dev_n)
     with out.open("w", encoding="utf-8") as f:
         json.dump(sliced, f, indent=2)
         f.write("\n")

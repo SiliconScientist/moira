@@ -22,6 +22,7 @@ from moira.mlip.cli import main as mlip_main
 from moira.mlip.preflight import validate_model_envs
 from moira.mlip.registry import get_model_specs
 from moira.mlip.runner import run_one_task
+from moira.mlip.shards import infer_shard_count, shard_bounds, shard_json_obj
 from moira.mlip.tasks import make_task_lines
 
 
@@ -416,6 +417,51 @@ class ConfigParsingTests(unittest.TestCase):
                 "Configure only one of mlip.shard_size or mlip.num_shards",
             ):
                 get_config(config_path)
+
+
+class DatasetShardTests(unittest.TestCase):
+    def test_shard_json_obj_slices_dict_by_shard_size(self) -> None:
+        obj = {
+            "a": {"value": 1},
+            "b": {"value": 2},
+            "c": {"value": 3},
+            "d": {"value": 4},
+            "e": {"value": 5},
+        }
+
+        shard = shard_json_obj(obj, shard_size=2, shard_index=1)
+
+        self.assertEqual(
+            shard,
+            {
+                "c": {"value": 3},
+                "d": {"value": 4},
+            },
+        )
+
+    def test_shard_json_obj_slices_list_by_shard_count(self) -> None:
+        obj = ["a", "b", "c", "d", "e"]
+
+        shard = shard_json_obj(obj, num_shards=3, shard_index=2)
+
+        self.assertEqual(shard, ["d", "e"])
+
+    def test_infer_shard_count_covers_all_records(self) -> None:
+        obj = {"a": 1, "b": 2, "c": 3, "d": 4, "e": 5}
+
+        self.assertEqual(infer_shard_count(obj, shard_size=2), 3)
+        self.assertEqual(infer_shard_count(obj, num_shards=4), 4)
+
+    def test_shard_bounds_partition_records_without_overlap(self) -> None:
+        obj = list(range(10))
+
+        bounds = [shard_bounds(obj, num_shards=3, shard_index=i) for i in range(3)]
+
+        self.assertEqual(bounds, [(0, 3), (3, 6), (6, 10)])
+
+    def test_shard_json_obj_rejects_invalid_index(self) -> None:
+        with self.assertRaisesRegex(IndexError, "out of range"):
+            shard_json_obj(["a", "b"], shard_size=1, shard_index=2)
 
 
 class LegacyUmaAdapterTests(unittest.TestCase):
