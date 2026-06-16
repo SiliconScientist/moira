@@ -17,6 +17,7 @@ from moira.adapters.catbench_paths import (
     resolve_results_dir,
 )
 from moira.__main__ import main
+from moira.config import get_config
 from moira.mlip.cli import main as mlip_main
 from moira.mlip.preflight import validate_model_envs
 from moira.mlip.registry import get_model_specs
@@ -280,6 +281,141 @@ class MlipRegistryTests(unittest.TestCase):
             specs["uma"].adapter_module, "moira.adapters.legacy.uma_adapter"
         )
         self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
+
+
+class ConfigParsingTests(unittest.TestCase):
+    def test_get_config_defaults_sharding_fields_to_none(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[ingest]",
+                        'source = "data/screening/trimetallic_n.db"',
+                        'dataset_name = "trimetallic_n"',
+                        'profile = "elemental_adsorption_ase_db"',
+                        "",
+                        "[ingest.stoich]",
+                        'elements = ["N"]',
+                        'basis_species = ["N2"]',
+                        "",
+                        "[ingest.stoich.basis_composition]",
+                        "N2 = { N = 2 }",
+                        "",
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock]",
+                        'root = "/tmp/rootstock"',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config = get_config(config_path)
+
+        self.assertIsNone(config.mlip.shard_size)
+        self.assertIsNone(config.mlip.num_shards)
+        self.assertIsNone(config.mlip.shard_index)
+
+    def test_get_config_parses_sharding_fields(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[ingest]",
+                        'source = "data/screening/trimetallic_n.db"',
+                        'dataset_name = "trimetallic_n"',
+                        'profile = "elemental_adsorption_ase_db"',
+                        "",
+                        "[ingest.stoich]",
+                        'elements = ["N"]',
+                        'basis_species = ["N2"]',
+                        "",
+                        "[ingest.stoich.basis_composition]",
+                        "N2 = { N = 2 }",
+                        "",
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "num_shards = 8",
+                        "shard_index = 3",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock]",
+                        'root = "/tmp/rootstock"',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config = get_config(config_path)
+
+        self.assertEqual(config.mlip.num_shards, 8)
+        self.assertEqual(config.mlip.shard_index, 3)
+        self.assertIsNone(config.mlip.shard_size)
+
+    def test_get_config_rejects_conflicting_sharding_settings(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[ingest]",
+                        'source = "data/screening/trimetallic_n.db"',
+                        'dataset_name = "trimetallic_n"',
+                        'profile = "elemental_adsorption_ase_db"',
+                        "",
+                        "[ingest.stoich]",
+                        'elements = ["N"]',
+                        'basis_species = ["N2"]',
+                        "",
+                        "[ingest.stoich.basis_composition]",
+                        "N2 = { N = 2 }",
+                        "",
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "shard_size = 1000",
+                        "num_shards = 8",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock]",
+                        'root = "/tmp/rootstock"',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "Configure only one of mlip.shard_size or mlip.num_shards",
+            ):
+                get_config(config_path)
 
 
 class LegacyUmaAdapterTests(unittest.TestCase):

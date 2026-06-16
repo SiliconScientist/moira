@@ -31,6 +31,10 @@ dev_run = false
 adapter_backend = "rootstock" # "rootstock" or "legacy"
 device = "cuda"               # falls back to "cpu" if CUDA is unavailable
 optimizer = "FIRE"
+# Optional sharding controls for large datasets:
+# shard_size = 1000
+# num_shards = 32
+# shard_index = 0
 # Optional:
 # run_tag = "dev"
 # dataset = "data/raw_data/example_adsorption.json"
