@@ -10,6 +10,7 @@ from unittest.mock import patch
 import warnings
 
 from moira.mlip.artifacts import (
+    collect_shard_outputs,
     find_result_files,
     load_efficiency_json,
     load_efficiency_table,
@@ -168,6 +169,65 @@ class MlipArtifactTests(unittest.TestCase):
             [3, 2],
         )
         self.assertIn("completed_reaction_count", csv_contents)
+
+    def test_collect_shard_outputs_builds_canonical_directory(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            shard_dirs = []
+            for idx, reaction in enumerate(("rxn-1->OH*", "rxn-2->NH*")):
+                shard_root = root / f"example_shard_{idx:02d}_of_02"
+                mlip_dir = shard_root / "uma-s-1p1"
+                (mlip_dir / "gases").mkdir(parents=True)
+                (mlip_dir / "log").mkdir()
+                (mlip_dir / "traj").mkdir()
+                (mlip_dir / "gases" / f"gas-{idx}.txt").write_text("gas", encoding="utf-8")
+                (mlip_dir / "log" / f"log-{idx}.txt").write_text("log", encoding="utf-8")
+                (mlip_dir / "traj" / f"traj-{idx}.xyz").write_text("traj", encoding="utf-8")
+                (mlip_dir / "uma-s-1p1_result.json").write_text(
+                    json.dumps(
+                        {
+                            "calculation_settings": {"optimizer": "fake"},
+                            reaction: {"final": {"ads_eng_median": idx + 1.0}},
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                (mlip_dir / "uma-s-1p1_efficiency.json").write_text(
+                    json.dumps(
+                        {
+                            "model_name": "uma",
+                            "mlip_name": "uma-s-1p1",
+                            "dataset_name": shard_root.name,
+                            "shard_index": idx,
+                            "completed_reaction_count": 1,
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                (mlip_dir / "uma-s-1p1_gases.json").write_text("{}", encoding="utf-8")
+                (mlip_dir / "uma-s-1p1_gases_single_point.json").write_text(
+                    "{}",
+                    encoding="utf-8",
+                )
+                shard_dirs.append(shard_root)
+
+            out_dir = root / "uma-s-1p1"
+            collect_shard_outputs(shard_dirs, mlip_name="uma-s-1p1", output_dir=out_dir)
+
+            merged = json.loads((out_dir / "uma-s-1p1_result.json").read_text(encoding="utf-8"))
+            manifest = json.loads((out_dir / "shard_manifest.json").read_text(encoding="utf-8"))
+            efficiency_csv = (out_dir / "uma-s-1p1_efficiency.csv").read_text(encoding="utf-8")
+            has_gases_dir = (out_dir / "gases" / "example_shard_00_of_02").is_dir()
+            has_log_dir = (out_dir / "log" / "example_shard_01_of_02").is_dir()
+            has_traj_dir = (out_dir / "traj" / "example_shard_00_of_02").is_dir()
+
+        self.assertIn("rxn-1->OH*", merged)
+        self.assertIn("rxn-2->NH*", merged)
+        self.assertTrue(has_gases_dir)
+        self.assertTrue(has_log_dir)
+        self.assertTrue(has_traj_dir)
+        self.assertIn("uma-s-1p1_gases.json", "".join(manifest["copied_auxiliary"]))
+        self.assertIn("completed_reaction_count", efficiency_csv)
 
     def test_load_wide_predictions_builds_expected_columns(self) -> None:
         with TemporaryDirectory() as tmp_dir:

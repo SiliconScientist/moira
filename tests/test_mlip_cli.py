@@ -174,6 +174,26 @@ class MlipCliTests(unittest.TestCase):
             output_path="data/results/efficiency.csv",
         )
 
+    def test_collect_shards_subcommand_delegates_to_collector(self) -> None:
+        with patch("moira.mlip.artifacts.collect_shard_outputs") as mock_collect_shard_outputs:
+            mlip_main(
+                [
+                    "collect-shards",
+                    "--mlip",
+                    "uma-s-1p1",
+                    "--out",
+                    "data/results/uma-s-1p1",
+                    "shard_00",
+                    "shard_01",
+                ]
+            )
+
+        mock_collect_shard_outputs.assert_called_once_with(
+            ["shard_00", "shard_01"],
+            mlip_name="uma-s-1p1",
+            output_dir="data/results/uma-s-1p1",
+        )
+
 
 class MlipTaskTests(unittest.TestCase):
     def test_make_task_lines_emit_json_records(self) -> None:

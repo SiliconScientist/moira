@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 from typing import Any
 import warnings
 
@@ -107,6 +108,74 @@ def write_efficiency_table(
     else:
         raise ValueError("Efficiency summary output must end with .csv or .json")
     return target
+
+
+def collect_shard_outputs(
+    shard_paths: list[str | Path],
+    *,
+    mlip_name: str,
+    output_dir: str | Path,
+) -> Path:
+    resolved_shard_dirs = _resolve_shard_dirs(shard_paths, mlip_name=mlip_name)
+    target_dir = Path(output_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    result_files = [path / f"{mlip_name}_result.json" for path in resolved_shard_dirs]
+    efficiency_files = [
+        path / f"{mlip_name}_efficiency.json"
+        for path in resolved_shard_dirs
+        if (path / f"{mlip_name}_efficiency.json").is_file()
+    ]
+
+    merge_result_jsons(
+        result_files,
+        output_path=target_dir / f"{mlip_name}_result.json",
+    )
+    if efficiency_files:
+        write_efficiency_table(
+            efficiency_files,
+            output_path=target_dir / f"{mlip_name}_efficiency.csv",
+        )
+        write_efficiency_table(
+            efficiency_files,
+            output_path=target_dir / f"{mlip_name}_efficiency.json",
+        )
+
+    manifest = {
+        "mlip_name": mlip_name,
+        "shard_sources": [str(path) for path in resolved_shard_dirs],
+        "copied_auxiliary": [],
+    }
+
+    for shard_dir in resolved_shard_dirs:
+        shard_tag = shard_dir.parent.name if shard_dir.parent != shard_dir else shard_dir.name
+        for name in ("gases", "log", "traj"):
+            src = shard_dir / name
+            if not src.exists():
+                continue
+            dest = target_dir / name / shard_tag
+            if dest.exists():
+                shutil.rmtree(dest)
+            shutil.copytree(src, dest)
+            manifest["copied_auxiliary"].append(str(dest.relative_to(target_dir)))
+
+        for filename in (
+            f"{mlip_name}_gases.json",
+            f"{mlip_name}_gases_single_point.json",
+            f"{mlip_name}_efficiency.json",
+        ):
+            src = shard_dir / filename
+            if not src.is_file():
+                continue
+            aux_dir = target_dir / "shard_files" / shard_tag
+            aux_dir.mkdir(parents=True, exist_ok=True)
+            dest = aux_dir / filename
+            shutil.copy2(src, dest)
+            manifest["copied_auxiliary"].append(str(dest.relative_to(target_dir)))
+
+    manifest_path = target_dir / "shard_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=4) + "\n", encoding="utf-8")
+    return target_dir
 
 
 def merge_result_jsons(
@@ -342,3 +411,28 @@ def _resolve_efficiency_files(efficiency_files: list[str | Path]) -> list[Path]:
         missing_paths = ", ".join(sorted(missing))
         raise FileNotFoundError(f"Efficiency JSON paths not found: {missing_paths}")
     return resolved
+
+
+def _resolve_shard_dirs(shard_paths: list[str | Path], *, mlip_name: str) -> list[Path]:
+    resolved = [Path(path) for path in shard_paths]
+    if not resolved:
+        raise ValueError("shard_paths must contain at least one shard directory")
+
+    shard_dirs: list[Path] = []
+    for path in resolved:
+        candidate = path
+        if candidate.name != mlip_name:
+            nested = candidate / mlip_name
+            if nested.is_dir():
+                candidate = nested
+        if not candidate.is_dir():
+            raise FileNotFoundError(
+                f"Shard directory not found for MLIP '{mlip_name}': {path}"
+            )
+        result_path = candidate / f"{mlip_name}_result.json"
+        if not result_path.is_file():
+            raise FileNotFoundError(
+                f"Expected shard result JSON not found: {result_path}"
+            )
+        shard_dirs.append(candidate)
+    return shard_dirs

@@ -70,6 +70,28 @@ def main(argv=None):
 
         write_efficiency_table(args.efficiency_files, output_path=args.out)
         return
+    if argv and argv[0] == "collect-shards":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Collect shard outputs into one canonical MLIP directory",
+        )
+        parser.add_argument("--mlip", required=True)
+        parser.add_argument("--out", required=True)
+        parser.add_argument(
+            "shard_paths",
+            nargs="+",
+            help="Shard dataset directories or shard MLIP directories",
+        )
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.artifacts import collect_shard_outputs
+
+        collect_shard_outputs(
+            args.shard_paths,
+            mlip_name=args.mlip,
+            output_dir=args.out,
+        )
+        return
 
     parser = argparse.ArgumentParser(
         prog="moira",
