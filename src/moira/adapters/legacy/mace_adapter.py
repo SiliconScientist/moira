@@ -24,6 +24,7 @@ def run(
     model_path: str | None = None,
     n_calcs: int = 3,
     results_dir_override: str | None = None,
+    slab_cache_dir_override: str | None = None,
 ) -> None:
     config = load_config(config_path)
     dev_run = bool(config.get("mlip", {}).get("dev_run", False))
@@ -67,6 +68,7 @@ def run(
             mlip_name=mlip_name,
             benchmark=dataset_name,
             model_name=model,
+            slab_cache_dir=slab_cache_dir_override,
         )
         save_directory = Path(adsorption_calc.run())
         enrich_result_file(

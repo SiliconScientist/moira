@@ -53,6 +53,7 @@ def run(
     config_path: str = "mlip.toml",
     n_calcs: int = 3,
     results_dir_override: str | None = None,
+    slab_cache_dir_override: str | None = None,
 ) -> None:
     from rootstock import RootstockCalculator
 
@@ -98,6 +99,7 @@ def run(
                 benchmark=dataset_name,
                 optimizer=optimizer,
                 model_name=model,
+                slab_cache_dir=slab_cache_dir_override,
             )
             save_directory = Path(adsorption_calc.run())
             enrich_result_file(

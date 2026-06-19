@@ -16,6 +16,14 @@ VENDOR_CATBENCH = Path(__file__).resolve().parents[1] / "vendor" / "catbench"
 if str(VENDOR_CATBENCH) not in sys.path:
     sys.path.insert(0, str(VENDOR_CATBENCH))
 
+for module_name in (
+    "catbench",
+    "catbench.adsorption",
+    "catbench.adsorption.calculation",
+    "catbench.adsorption.calculation.calculation",
+):
+    sys.modules.pop(module_name, None)
+
 calculation_module = importlib.import_module(
     "catbench.adsorption.calculation.calculation"
 )
@@ -151,7 +159,7 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
             },
         )
 
-    def test_repeated_reactions_with_same_parent_slab_id_reuse_cached_slab(self) -> None:
+    def test_two_shards_with_same_parent_slab_id_reuse_shared_slab_cache(self) -> None:
         slab = Atoms(
             "Cu2",
             positions=[(0.0, 0.0, 0.0), (1.8, 1.8, 0.0)],
@@ -188,19 +196,6 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
                 },
             }
 
-        calculation = AdsorptionCalculation(
-            calculators=["fake-calculator"],
-            mlip_name="7net-omni",
-            benchmark="test_n",
-            save_files=False,
-            use_slab_cache=True,
-            model_name="sevennet",
-            f_crit_relax=0.05,
-            n_crit_relax=50,
-            damping=1.0,
-            optimizer="LBFGS",
-            rate=0.5,
-        )
         slab_relax_calls = 0
         adslab_relax_calls = 0
 
@@ -229,6 +224,23 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
             return {"max_disp": 0.22, "mae_mobile": 0.06, "rmsd_mobile": 0.07}
 
         with TemporaryDirectory() as tmp_dir:
+            shared_cache_dir = Path(tmp_dir) / "example" / "_shared" / "slab_cache"
+            shard_a_dir = Path(tmp_dir) / "example_shard_00_of_02"
+            shard_b_dir = Path(tmp_dir) / "example_shard_01_of_02"
+            calculation = AdsorptionCalculation(
+                calculators=["fake-calculator"],
+                mlip_name="7net-omni",
+                benchmark="test_n",
+                save_files=False,
+                use_slab_cache=True,
+                model_name="sevennet",
+                slab_cache_dir=str(shared_cache_dir),
+                f_crit_relax=0.05,
+                n_crit_relax=50,
+                damping=1.0,
+                optimizer="LBFGS",
+                rate=0.5,
+            )
             with patch.object(
                 calculation_module,
                 "energy_cal_single",
@@ -261,14 +273,14 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
                 result_a = calculation._process_reaction_basic(
                     "rxn-1->N*",
                     reaction(adslab_a),
-                    save_directory=tmp_dir,
+                    save_directory=str(shard_a_dir),
                     gas_energies={},
                     gas_energies_single={},
                 )
                 result_b = calculation._process_reaction_basic(
                     "rxn-2->N*",
                     reaction(adslab_b),
-                    save_directory=tmp_dir,
+                    save_directory=str(shard_b_dir),
                     gas_energies={},
                     gas_energies_single={},
                 )

@@ -18,6 +18,7 @@ from moira.mlip.registry import (
     get_model_python,
 )
 from moira.mlip.shards import slice_json_obj
+from moira.mlip.tasks import dataset_name_from_path
 
 
 @contextmanager
@@ -212,6 +213,30 @@ def _task_results_dir(task: dict[str, str], config_path: str) -> str | None:
     return str((configured_results_dir / task["dataset_name"]).resolve())
 
 
+def _task_slab_cache_dir(task: dict[str, str], config_path: str) -> str | None:
+    if "shard_index" not in task:
+        return None
+
+    input_path = task.get("input_path")
+    if input_path is None:
+        return None
+
+    config = load_config(config_path)
+    dev_run = bool(config.get("mlip", {}).get("dev_run", False))
+    configured_results_dir = resolve_results_dir(
+        config.get("mlip", {}).get("results_dir"),
+        config_path=config_path,
+        dev_run=dev_run,
+    )
+    if configured_results_dir is None:
+        configured_results_dir = Path.cwd() / "result_shards"
+
+    base_dataset_name = dataset_name_from_path(Path(input_path))
+    return str(
+        (configured_results_dir / base_dataset_name / "_shared" / "slab_cache").resolve()
+    )
+
+
 def _task_mlip_name(model: str, config_path: str) -> str | None:
     config = load_config(config_path)
     spec = config.get("mlip", {}).get("rootstock", {}).get("models", {}).get(model, {})
@@ -228,6 +253,7 @@ def run_one_task(line: str, config_path: str):
     with ExitStack() as stack:
         dataset_path, dataset_name = _materialize_task_dataset(task, stack=stack)
         results_dir_override = _task_results_dir(task, resolved_config_path)
+        slab_cache_dir_override = _task_slab_cache_dir(task, resolved_config_path)
         mlip_name = _task_mlip_name(model, resolved_config_path)
 
         print(f"Running adapter: {model} ({dataset_name})")
@@ -243,6 +269,7 @@ def run_one_task(line: str, config_path: str):
                 device=device,
                 config_path=resolved_config_path,
                 results_dir_override=results_dir_override,
+                slab_cache_dir_override=slab_cache_dir_override,
             )
             task_wall_seconds = perf_counter() - time_init
             result_dir = (

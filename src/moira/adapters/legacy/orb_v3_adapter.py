@@ -25,6 +25,7 @@ def run(
     model_path: str | None = None,
     n_calcs: int = 3,
     results_dir_override: str | None = None,
+    slab_cache_dir_override: str | None = None,
 ) -> None:
     config = load_config(config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
@@ -68,6 +69,7 @@ def run(
             benchmark=dataset_name,
             optimizer=optimizer,
             model_name=model,
+            slab_cache_dir=slab_cache_dir_override,
         )
         save_directory = Path(adsorption_calc.run())
         enrich_result_file(

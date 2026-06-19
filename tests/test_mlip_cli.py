@@ -921,6 +921,7 @@ class MlipRunnerTests(unittest.TestCase):
             device="cpu",
             config_path=str(config_path.resolve()),
             results_dir_override=None,
+            slab_cache_dir_override=None,
         )
 
     def test_run_one_task_dispatches_legacy_adapter_when_selected(self) -> None:
@@ -966,6 +967,7 @@ class MlipRunnerTests(unittest.TestCase):
             device="cpu",
             config_path=str(config_path.resolve()),
             results_dir_override=None,
+            slab_cache_dir_override=None,
         )
 
     def test_run_one_task_accepts_legacy_task_lines(self) -> None:
@@ -1006,6 +1008,7 @@ class MlipRunnerTests(unittest.TestCase):
             device="cpu",
             config_path=str(config_path.resolve()),
             results_dir_override=None,
+            slab_cache_dir_override=None,
         )
 
     def test_run_one_task_uses_configured_cpu_device(self) -> None:
@@ -1047,6 +1050,7 @@ class MlipRunnerTests(unittest.TestCase):
             device="cpu",
             config_path=str(config_path.resolve()),
             results_dir_override=None,
+            slab_cache_dir_override=None,
         )
 
     def test_run_one_task_materializes_shard_dataset_and_results_dir(self) -> None:
@@ -1094,6 +1098,7 @@ class MlipRunnerTests(unittest.TestCase):
                 captured["dataset_path"] = str(shard_path)
                 captured["payload"] = json.loads(shard_path.read_text(encoding="utf-8"))
                 captured["results_dir_override"] = kwargs["results_dir_override"]
+                captured["slab_cache_dir_override"] = kwargs["slab_cache_dir_override"]
 
             mock_runner = Mock(side_effect=_capture_runner)
             with patch(
@@ -1134,6 +1139,14 @@ class MlipRunnerTests(unittest.TestCase):
         self.assertEqual(
             captured["results_dir_override"],
             str((tmp / "data/results/run" / task_name).resolve()),
+        )
+        self.assertEqual(
+            kwargs["slab_cache_dir_override"],
+            str((tmp / "data/results/run" / "example" / "_shared" / "slab_cache").resolve()),
+        )
+        self.assertEqual(
+            captured["slab_cache_dir_override"],
+            str((tmp / "data/results/run" / "example" / "_shared" / "slab_cache").resolve()),
         )
         self.assertFalse(Path(captured["dataset_path"]).exists())
 
@@ -1502,4 +1515,5 @@ class CatbenchPathPatchTests(unittest.TestCase):
             device="cpu",
             config_path=str(config_path.resolve()),
             results_dir_override=None,
+            slab_cache_dir_override=None,
         )
