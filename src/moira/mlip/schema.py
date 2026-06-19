@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -42,8 +44,20 @@ def atomic_write_json(path: str | Path, obj: dict[str, Any], indent: int = 2) ->
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
 
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    with tmp.open("w", encoding="utf-8") as f:
-        json.dump(obj, f, indent=indent, sort_keys=False)
-        f.write("\n")
-    tmp.replace(path)
+    fd, tmp_name = tempfile.mkstemp(
+        dir=path.parent,
+        prefix=f"{path.name}.",
+        suffix=".tmp",
+        text=True,
+    )
+    tmp = Path(tmp_name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            json.dump(obj, f, indent=indent, sort_keys=False)
+            f.write("\n")
+            f.flush()
+            os.fsync(f.fileno())
+        tmp.replace(path)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
