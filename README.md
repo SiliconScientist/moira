@@ -92,6 +92,30 @@ Each shard writes to a shard-specific result directory under `mlip.results_dir`.
 This keeps CatBench restart logic local to that shard and prevents concurrent jobs
 from rewriting the same `*_result.json`.
 
+## Slab Cache
+
+Moira can reuse relaxed clean-slab calculations across adsorption reactions that
+share the same underlying slab.
+
+- Cache identity: the key is derived from source metadata `parent_slab_id` plus
+  model identity (`model_name`, `mlip_name`) and relaxation settings such as
+  optimizer, force threshold, step limit, damping, rate, and chemical bond cutoff.
+- Cache location: non-sharded runs default to a local `slab_cache/` directory
+  under the CatBench result directory for that run. Sharded runs use a shared
+  location under `mlip.results_dir/<base_dataset_name>/_shared/slab_cache` so all
+  shards for the same dataset can see the same entries.
+- Invalidation: changing any field that participates in cache identity produces a
+  new cache key automatically. In practice, changing `parent_slab_id`, model
+  selection, or slab relaxation settings invalidates reuse. Manual invalidation is
+  just deleting the corresponding cache files or the shared `slab_cache/` folder.
+- Shard interaction: shard-local result JSONs remain isolated, but slab-cache
+  entries are intentionally shared for one dataset run. Concurrent writers use
+  atomic replace with unique temporary files so a cache collision does not leave a
+  partial JSON artifact.
+- Diagnostics: result payloads and `*_efficiency.json` summaries record
+  `slab_cache_hit`, `slab_cache_hit_count`, and
+  `saved_slab_time_estimate_seconds`.
+
 ## Scope
 
 This repo contains:

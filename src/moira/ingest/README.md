@@ -87,6 +87,8 @@ MLIP runs consume the emitted adsorption JSON and write `*_result.json` files un
 
 - Moira immediately enriches each reaction entry after CatBench finishes
 - The enriched result entry keeps dataset `metadata` and a persisted `moira_analysis` block with labels, anomaly details, and derived energies
+- If `metadata["reference"]["parent_slab_id"]` is present, Moira also derives a
+  slab-cache key from that source identifier plus model and relaxation settings
 - [moira.mlip.result_parsing](/Users/averyhill/github/moira/src/moira/mlip/result_parsing.py:1) defines the persisted analysis payload
 - [moira.mlip.artifacts](/Users/averyhill/github/moira/src/moira/mlip/artifacts.py:1) reads that stored analysis into the wide predictions table and only falls back to recomputing it for older unenriched result files
 
