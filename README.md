@@ -63,7 +63,7 @@ Sharding helpers:
 
 ```bash
 python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
-python -m moira.mlip merge-shards --out data/results/mace_result.json shard_a.json shard_b.json
+python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 ```
 
 `make-tasks` writes JSONL task records for Slurm array execution. When sharding is
@@ -101,12 +101,17 @@ Typical Slurm flow:
 ```bash
 python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
 sbatch --array=0-$(($(wc -l < slurm_output/mlip_tasks_screen.jsonl)-1)) slurm/mlip_one.sbatch slurm_output/mlip_tasks_screen.jsonl config.toml
-python -m moira.mlip merge-shards --out data/results/mace_result.json data/results/run/example_shard_00_of_32/mace-mh-1/mace-mh-1_result.json data/results/run/example_shard_01_of_32/mace-mh-1/mace-mh-1_result.json
+python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 ```
 
 Each shard writes to a shard-specific result directory under `mlip.results_dir`.
 This keeps CatBench restart logic local to that shard and prevents concurrent jobs
 from rewriting the same `*_result.json`.
+
+When you point `collect-shards` at one shard-root directory and omit `--mlip`,
+Moira autodetects every MLIP present across the shards and writes merged
+`*_result.json` files to that directory. If shard efficiency JSONs are present,
+it also writes per-MLIP `*_efficiency.csv` and `*_efficiency.json` summaries.
 
 ## Slab Cache
 

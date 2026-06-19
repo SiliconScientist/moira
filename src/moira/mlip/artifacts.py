@@ -178,6 +178,55 @@ def collect_shard_outputs(
     return target_dir
 
 
+def collect_sharded_run_outputs(
+    results_root: str | Path,
+    *,
+    output_dir: str | Path | None = None,
+) -> dict[str, Path]:
+    root_dir = Path(results_root)
+    if not root_dir.is_dir():
+        raise FileNotFoundError(f"Shard root directory not found: {root_dir}")
+
+    target_dir = Path(output_dir) if output_dir is not None else root_dir
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    shard_groups = _discover_shard_groups(root_dir)
+    merged_outputs: dict[str, Path] = {}
+
+    for mlip_name, shard_dirs in sorted(shard_groups.items()):
+        result_files = [path / f"{mlip_name}_result.json" for path in shard_dirs]
+        merged_path = target_dir / f"{mlip_name}_result.json"
+        merge_result_jsons(result_files, output_path=merged_path)
+        merged_outputs[mlip_name] = merged_path
+
+        efficiency_files = [
+            path / f"{mlip_name}_efficiency.json"
+            for path in shard_dirs
+            if (path / f"{mlip_name}_efficiency.json").is_file()
+        ]
+        if efficiency_files:
+            write_efficiency_table(
+                efficiency_files,
+                output_path=target_dir / f"{mlip_name}_efficiency.csv",
+            )
+            write_efficiency_table(
+                efficiency_files,
+                output_path=target_dir / f"{mlip_name}_efficiency.json",
+            )
+
+    manifest = {
+        "results_root": str(root_dir),
+        "merged_outputs": {mlip_name: str(path) for mlip_name, path in merged_outputs.items()},
+        "shard_sources": {
+            mlip_name: [str(path) for path in shard_dirs]
+            for mlip_name, shard_dirs in sorted(shard_groups.items())
+        },
+    }
+    manifest_path = target_dir / "shard_merge_manifest.json"
+    manifest_path.write_text(json.dumps(manifest, indent=4) + "\n", encoding="utf-8")
+    return merged_outputs
+
+
 def merge_result_jsons(
     result_files: list[str | Path],
     *,
@@ -436,3 +485,18 @@ def _resolve_shard_dirs(shard_paths: list[str | Path], *, mlip_name: str) -> lis
             )
         shard_dirs.append(candidate)
     return shard_dirs
+
+
+def _discover_shard_groups(results_root: Path) -> dict[str, list[Path]]:
+    shard_groups: dict[str, list[Path]] = {}
+    for shard_root in sorted(path for path in results_root.iterdir() if path.is_dir()):
+        for mlip_dir in sorted(path for path in shard_root.iterdir() if path.is_dir()):
+            result_path = mlip_dir / f"{mlip_dir.name}_result.json"
+            if not result_path.is_file():
+                continue
+            shard_groups.setdefault(mlip_dir.name, []).append(mlip_dir)
+    if shard_groups:
+        return shard_groups
+    raise FileNotFoundError(
+        f"No shard result directories found under {results_root}"
+    )

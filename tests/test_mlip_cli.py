@@ -140,23 +140,6 @@ class MlipCliTests(unittest.TestCase):
             datasets=["dataset.json"],
         )
 
-    def test_merge_shards_subcommand_delegates_to_artifact_merger(self) -> None:
-        with patch("moira.mlip.artifacts.merge_result_jsons") as mock_merge_result_jsons:
-            mlip_main(
-                [
-                    "merge-shards",
-                    "--out",
-                    "data/results/mace_result.json",
-                    "part-0.json",
-                    "part-1.json",
-                ]
-            )
-
-        mock_merge_result_jsons.assert_called_once_with(
-            ["part-0.json", "part-1.json"],
-            output_path="data/results/mace_result.json",
-        )
-
     def test_summarize_efficiency_subcommand_delegates_to_writer(self) -> None:
         with patch("moira.mlip.artifacts.write_efficiency_table") as mock_write_efficiency_table:
             mlip_main(
@@ -192,6 +175,17 @@ class MlipCliTests(unittest.TestCase):
             ["shard_00", "shard_01"],
             mlip_name="uma-s-1p1",
             output_dir="data/results/uma-s-1p1",
+        )
+
+    def test_collect_shards_subcommand_autodetects_shard_root(self) -> None:
+        with patch(
+            "moira.mlip.artifacts.collect_sharded_run_outputs"
+        ) as mock_collect_sharded_run_outputs:
+            mlip_main(["collect-shards", "data/results/trimetallic_n_dev"])
+
+        mock_collect_sharded_run_outputs.assert_called_once_with(
+            "data/results/trimetallic_n_dev",
+            output_dir=None,
         )
 
 

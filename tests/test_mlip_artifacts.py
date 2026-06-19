@@ -11,6 +11,7 @@ import warnings
 
 from moira.mlip.artifacts import (
     collect_shard_outputs,
+    collect_sharded_run_outputs,
     find_result_files,
     load_efficiency_json,
     load_efficiency_table,
@@ -229,6 +230,49 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertTrue(has_traj_dir)
         self.assertIn("uma-s-1p1_gases.json", "".join(manifest["copied_auxiliary"]))
         self.assertIn("completed_reaction_count", efficiency_csv)
+
+    def test_collect_sharded_run_outputs_autodetects_mlips(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            shard_a = root / "trimetallic_n_dev_shard_00_of_02"
+            shard_b = root / "trimetallic_n_dev_shard_01_of_02"
+            for shard_root, suffix in ((shard_a, "OH"), (shard_b, "NH")):
+                for mlip_name in ("mace-mh-1", "mattersim-v1-5m"):
+                    mlip_dir = shard_root / mlip_name
+                    mlip_dir.mkdir(parents=True)
+                    (mlip_dir / f"{mlip_name}_result.json").write_text(
+                        json.dumps(
+                            {
+                                f"rxn-{suffix}->{suffix}*": {
+                                    "final": {"ads_eng_median": 1.0},
+                                }
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+                    (mlip_dir / f"{mlip_name}_efficiency.json").write_text(
+                        json.dumps(
+                            {
+                                "model_name": mlip_name,
+                                "dataset_name": shard_root.name,
+                                "shard_index": 0 if shard_root == shard_a else 1,
+                                "completed_reaction_count": 1,
+                            }
+                        ),
+                        encoding="utf-8",
+                    )
+
+            merged = collect_sharded_run_outputs(root)
+            mace_payload = json.loads((root / "mace-mh-1_result.json").read_text(encoding="utf-8"))
+            mattersim_payload = json.loads(
+                (root / "mattersim-v1-5m_result.json").read_text(encoding="utf-8")
+            )
+            manifest = json.loads((root / "shard_merge_manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(sorted(merged), ["mace-mh-1", "mattersim-v1-5m"])
+        self.assertIn("rxn-OH->OH*", mace_payload)
+        self.assertIn("rxn-NH->NH*", mattersim_payload)
+        self.assertIn("mace-mh-1", manifest["merged_outputs"])
 
     def test_load_wide_predictions_builds_expected_columns(self) -> None:
         with TemporaryDirectory() as tmp_dir:

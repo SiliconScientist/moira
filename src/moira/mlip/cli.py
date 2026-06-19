@@ -40,19 +40,6 @@ def main(argv=None):
             datasets=args.datasets,
         )
         return
-    if argv and argv[0] == "merge-shards":
-        parser = argparse.ArgumentParser(
-            prog="moira",
-            description="Merge shard result JSONs into one result file",
-        )
-        parser.add_argument("--out", required=True)
-        parser.add_argument("result_files", nargs="+", help="Shard result JSON paths")
-        args = parser.parse_args(argv[1:])
-
-        from moira.mlip.artifacts import merge_result_jsons
-
-        merge_result_jsons(args.result_files, output_path=args.out)
-        return
     if argv and argv[0] == "summarize-efficiency":
         parser = argparse.ArgumentParser(
             prog="moira",
@@ -73,24 +60,36 @@ def main(argv=None):
     if argv and argv[0] == "collect-shards":
         parser = argparse.ArgumentParser(
             prog="moira",
-            description="Collect shard outputs into one canonical MLIP directory",
+            description="Collect shard outputs for one MLIP or autodetect a sharded run",
         )
-        parser.add_argument("--mlip", required=True)
-        parser.add_argument("--out", required=True)
+        parser.add_argument("--mlip")
+        parser.add_argument("--out")
         parser.add_argument(
             "shard_paths",
             nargs="+",
-            help="Shard dataset directories or shard MLIP directories",
+            help="Shard dataset directories, shard MLIP directories, or one shard-root directory",
         )
         args = parser.parse_args(argv[1:])
 
-        from moira.mlip.artifacts import collect_shard_outputs
+        from moira.mlip.artifacts import collect_shard_outputs, collect_sharded_run_outputs
 
-        collect_shard_outputs(
-            args.shard_paths,
-            mlip_name=args.mlip,
-            output_dir=args.out,
-        )
+        if args.mlip is None:
+            if len(args.shard_paths) != 1:
+                parser.error(
+                    "autodetect mode expects exactly one shard-root directory when --mlip is omitted"
+                )
+            collect_sharded_run_outputs(
+                args.shard_paths[0],
+                output_dir=args.out,
+            )
+        else:
+            if args.out is None:
+                parser.error("--out is required when collecting one explicit MLIP")
+            collect_shard_outputs(
+                args.shard_paths,
+                mlip_name=args.mlip,
+                output_dir=args.out,
+            )
         return
 
     parser = argparse.ArgumentParser(
