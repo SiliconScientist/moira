@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib
+import json
 import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -31,6 +32,29 @@ AdsorptionCalculation = calculation_module.AdsorptionCalculation
 
 
 class SlabRelaxationRefactorTests(unittest.TestCase):
+    @staticmethod
+    def _without_cache_diagnostics(payload):
+        if isinstance(payload, dict):
+            filtered = {}
+            for key, value in payload.items():
+                if key in {
+                    "slab_cache_hit",
+                    "slab_cache_hit_count",
+                    "saved_slab_time_estimate_seconds",
+                    "slab_energy_change",
+                }:
+                    continue
+                filtered[key] = SlabRelaxationRefactorTests._without_cache_diagnostics(
+                    value
+                )
+            return filtered
+        if isinstance(payload, list):
+            return [
+                SlabRelaxationRefactorTests._without_cache_diagnostics(item)
+                for item in payload
+            ]
+        return payload
+
     def test_process_reaction_basic_preserves_behavior_when_cache_disabled(self) -> None:
         slab = Atoms(
             "Cu2",
@@ -387,3 +411,185 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
         self.assertEqual(cached_entry.slab_energy_ev, -10.0)
         self.assertEqual(cached_entry.relaxation_steps, 3)
         self.assertEqual(cached_entry.relaxation_time_seconds, 1.5)
+
+    def test_end_to_end_slab_cache_reuse_preserves_scientific_output(self) -> None:
+        slab = Atoms(
+            "Cu2",
+            positions=[(0.0, 0.0, 0.0), (1.8, 1.8, 0.0)],
+            cell=[(3.6, 0.0, 0.0), (0.0, 3.6, 0.0), (0.0, 0.0, 15.0)],
+            pbc=(True, True, False),
+        )
+        gas = Atoms("N", positions=[(0.0, 0.0, 0.0)])
+        adslab_a = Atoms(
+            "Cu2N",
+            positions=[(0.0, 0.0, 0.0), (1.8, 1.8, 0.0), (0.9, 0.9, 1.2)],
+            cell=[(3.6, 0.0, 0.0), (0.0, 3.6, 0.0), (0.0, 0.0, 15.0)],
+            pbc=(True, True, False),
+        )
+        adslab_b = Atoms(
+            "Cu2N",
+            positions=[(0.0, 0.0, 0.0), (1.8, 1.8, 0.0), (1.2, 0.9, 1.2)],
+            cell=[(3.6, 0.0, 0.0), (0.0, 3.6, 0.0), (0.0, 0.0, 15.0)],
+            pbc=(True, True, False),
+        )
+        fixture = {
+            "rxn-1->N*": {
+                "ref_ads_eng": -0.75,
+                "adsorbate_indices": [2],
+                "metadata": {"reference": {"parent_slab_id": "slab-000004"}},
+                "raw": {
+                    "star": {"atoms": slab.copy(), "stoi": 1.0, "energy_ref": -11.0},
+                    "Nstar": {"atoms": adslab_a.copy(), "stoi": 1.0, "energy_ref": -7.5},
+                    "Ngas": {"atoms": gas.copy(), "stoi": 1.0},
+                },
+            },
+            "rxn-2->N*": {
+                "ref_ads_eng": -0.75,
+                "adsorbate_indices": [2],
+                "metadata": {"reference": {"parent_slab_id": "slab-000004"}},
+                "raw": {
+                    "star": {"atoms": slab.copy(), "stoi": 1.0, "energy_ref": -11.0},
+                    "Nstar": {"atoms": adslab_b.copy(), "stoi": 1.0, "energy_ref": -7.5},
+                    "Ngas": {"atoms": gas.copy(), "stoi": 1.0},
+                },
+            },
+        }
+
+        def make_calculation(*, use_slab_cache: bool, cache_dir: str | None):
+            return AdsorptionCalculation(
+                calculators=["fake-calculator"],
+                mlip_name="7net-omni",
+                benchmark="test_n",
+                save_files=False,
+                save_step=50,
+                use_slab_cache=use_slab_cache,
+                model_name="sevennet",
+                slab_cache_dir=cache_dir,
+                f_crit_relax=0.05,
+                n_crit_relax=50,
+                damping=1.0,
+                optimizer="LBFGS",
+                rate=0.5,
+            )
+
+        uncached_counts = {"slab": 0, "adslab": 0}
+        cached_counts = {"slab": 0, "adslab": 0}
+
+        def fake_energy_cal_single(_calculator, atoms):
+            if len(atoms) == 2:
+                return 1.0
+            if len(atoms) == 3:
+                return 5.0
+            return 0.25
+
+        def make_fake_energy_cal(counter):
+            def fake_energy_cal(_calculator, atoms, *_args, **_kwargs):
+                if len(atoms) == 2:
+                    counter["slab"] += 1
+                    relaxed = atoms.copy()
+                    relaxed.positions[1, 2] = 0.1
+                    return (-10.0, 3, relaxed, 1.5, -0.2)
+                counter["adslab"] += 1
+                relaxed = atoms.copy()
+                relaxed.positions[2, 2] += 0.2
+                return (-7.0, 4, relaxed, 2.5, -0.3)
+
+            return fake_energy_cal
+
+        def fake_calc_displacement(initial, _final, _z_target=None):
+            if len(initial) == 2:
+                return {"max_disp": 0.11, "mae_mobile": 0.04, "rmsd_mobile": 0.05}
+            return {"max_disp": 0.22, "mae_mobile": 0.06, "rmsd_mobile": 0.07}
+
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            uncached_dir = root / "uncached"
+            cached_dir = root / "cached"
+            shared_cache_dir = root / "shared" / "slab_cache"
+            uncached_dir.mkdir(parents=True, exist_ok=True)
+            cached_dir.mkdir(parents=True, exist_ok=True)
+
+            uncached = make_calculation(use_slab_cache=False, cache_dir=None)
+            cached = make_calculation(
+                use_slab_cache=True,
+                cache_dir=str(shared_cache_dir),
+            )
+
+            with patch.object(
+                uncached,
+                "_load_data",
+                return_value=fixture,
+            ), patch.object(
+                cached,
+                "_load_data",
+                return_value=fixture,
+            ), patch.object(
+                uncached,
+                "_setup_directories",
+                return_value=str(uncached_dir),
+            ), patch.object(
+                cached,
+                "_setup_directories",
+                return_value=str(cached_dir),
+            ), patch.object(
+                calculation_module,
+                "energy_cal_single",
+                side_effect=fake_energy_cal_single,
+            ), patch.object(
+                calculation_module,
+                "energy_cal_gas",
+                return_value=(gas.copy(), 0.5),
+            ), patch.object(
+                calculation_module,
+                "calc_displacement",
+                side_effect=fake_calc_displacement,
+            ), patch.object(
+                calculation_module,
+                "fix_z",
+                return_value=0.5,
+            ), patch.object(
+                uncached,
+                "_calculate_max_bond_change",
+                return_value=0.8,
+            ), patch.object(
+                cached,
+                "_calculate_max_bond_change",
+                return_value=0.8,
+            ), patch.object(
+                uncached,
+                "_calculate_substrate_displacement",
+                return_value=0.3,
+            ), patch.object(
+                cached,
+                "_calculate_substrate_displacement",
+                return_value=0.3,
+            ):
+                with patch.object(
+                    calculation_module,
+                    "energy_cal",
+                    side_effect=make_fake_energy_cal(uncached_counts),
+                ):
+                    uncached_run_dir = Path(uncached.run())
+
+                with patch.object(
+                    calculation_module,
+                    "energy_cal",
+                    side_effect=make_fake_energy_cal(cached_counts),
+                ):
+                    cached_run_dir = Path(cached.run())
+
+            uncached_result = json.loads(
+                (uncached_run_dir / "7net-omni_result.json").read_text(encoding="utf-8")
+            )
+            cached_result = json.loads(
+                (cached_run_dir / "7net-omni_result.json").read_text(encoding="utf-8")
+            )
+
+        self.assertEqual(uncached_counts["slab"], 2)
+        self.assertEqual(cached_counts["slab"], 1)
+        self.assertEqual(uncached_counts["adslab"], 2)
+        self.assertEqual(cached_counts["adslab"], 2)
+        self.assertEqual(
+            self._without_cache_diagnostics(cached_result),
+            self._without_cache_diagnostics(uncached_result),
+        )
