@@ -338,6 +338,8 @@ class AdsorptionCalculation:
                         slab_result = self._relax_slab_structure(
                             calculator=self.calculators[i],
                             slab_atoms=POSCAR_str,
+                            reaction_data=reaction_data,
+                            save_directory=save_directory,
                             z_target=z_target,
                             log_path=log_path,
                             traj_path=traj_path,
@@ -515,11 +517,23 @@ class AdsorptionCalculation:
         *,
         calculator,
         slab_atoms,
+        reaction_data,
+        save_directory,
         z_target,
         log_path,
         traj_path,
         calculation_index,
     ):
+        cache_entry = self._load_cached_slab_result(
+            calculator=calculator,
+            reaction_data=reaction_data,
+            slab_atoms=slab_atoms,
+            save_directory=save_directory,
+            z_target=z_target,
+        )
+        if cache_entry is not None:
+            return cache_entry
+
         logfile = f"{log_path}/star_{calculation_index}.txt" if log_path else None
         trajectory = f"{traj_path}/star_{calculation_index}" if traj_path else None
         (
@@ -539,7 +553,7 @@ class AdsorptionCalculation:
             logfile,
             trajectory,
         )
-        return {
+        slab_result = {
             "energy": energy_calculated,
             "steps": steps_calculated,
             "final_atoms": relaxed_atoms.copy(),
@@ -548,6 +562,111 @@ class AdsorptionCalculation:
             "energy_change": energy_change,
             "displacement_stats": calc_displacement(slab_atoms, relaxed_atoms, z_target),
         }
+        self._store_cached_slab_result(
+            reaction_data=reaction_data,
+            save_directory=save_directory,
+            slab_result=slab_result,
+        )
+        return slab_result
+
+    def _load_cached_slab_result(
+        self,
+        *,
+        calculator,
+        reaction_data,
+        slab_atoms,
+        save_directory,
+        z_target,
+    ):
+        if not self.config.get("use_slab_cache", False):
+            return None
+
+        cache_key = self._slab_cache_key(reaction_data)
+        if cache_key is None:
+            return None
+
+        cache_path = self._slab_cache_path(save_directory, cache_key)
+        if cache_path is None or not os.path.isfile(cache_path):
+            return None
+
+        from moira.mlip.slab_cache import load_slab_cache_entry
+
+        entry = load_slab_cache_entry(cache_path)
+        initial_energy = energy_cal_single(calculator, slab_atoms)
+        displacement_metrics = entry.displacement_metrics
+        if displacement_metrics is None:
+            displacement_metrics = calc_displacement(
+                slab_atoms,
+                entry.slab_geometry,
+                z_target,
+            )
+        return {
+            "energy": entry.slab_energy_ev,
+            "steps": entry.relaxation_steps,
+            "final_atoms": entry.slab_geometry.copy(),
+            "initial_atoms": slab_atoms.copy(),
+            "time": entry.relaxation_time_seconds,
+            "energy_change": entry.slab_energy_ev - initial_energy,
+            "displacement_stats": dict(displacement_metrics),
+        }
+
+    def _store_cached_slab_result(
+        self,
+        *,
+        reaction_data,
+        save_directory,
+        slab_result,
+    ):
+        if not self.config.get("use_slab_cache", False):
+            return
+
+        cache_key = self._slab_cache_key(reaction_data)
+        cache_path = self._slab_cache_path(save_directory, cache_key)
+        if cache_key is None or cache_path is None:
+            return
+
+        from moira.mlip.slab_cache import SlabCacheEntry, write_slab_cache_entry
+
+        write_slab_cache_entry(
+            os.path.dirname(cache_path),
+            SlabCacheEntry(
+                cache_key=cache_key,
+                slab_energy_ev=slab_result["energy"],
+                slab_geometry=slab_result["final_atoms"].copy(),
+                relaxation_steps=slab_result["steps"],
+                relaxation_time_seconds=slab_result["time"],
+                displacement_metrics=dict(slab_result["displacement_stats"]),
+            ),
+        )
+
+    def _slab_cache_key(self, reaction_data):
+        metadata = reaction_data.get("metadata")
+        if not isinstance(metadata, dict):
+            return None
+
+        reference_metadata = metadata.get("reference")
+        if not isinstance(reference_metadata, dict):
+            return None
+
+        from moira.mlip.result_metadata import build_slab_cache_key
+
+        return build_slab_cache_key(
+            metadata=reference_metadata,
+            model_name=self.config.get("model_name"),
+            mlip_name=self.mlip_name,
+            calculation_settings=self.config,
+        )
+
+    def _slab_cache_path(self, save_directory, cache_key):
+        if cache_key is None:
+            return None
+
+        from moira.mlip.slab_cache import slab_cache_entry_path
+
+        cache_dir = self.config.get("slab_cache_dir")
+        if cache_dir is None:
+            cache_dir = os.path.join(save_directory, "slab_cache")
+        return str(slab_cache_entry_path(cache_dir, cache_key))
     
     def _run_oc20(self):
         """Run OC20 benchmarking mode (adsorbate-only calculations)."""

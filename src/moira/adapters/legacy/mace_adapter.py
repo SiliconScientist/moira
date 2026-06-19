@@ -66,6 +66,7 @@ def run(
             calculators,
             mlip_name=mlip_name,
             benchmark=dataset_name,
+            model_name=model,
         )
         save_directory = Path(adsorption_calc.run())
         enrich_result_file(
