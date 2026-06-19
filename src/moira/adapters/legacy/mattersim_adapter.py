@@ -71,4 +71,5 @@ def run(
             dataset_name=dataset_name,
             result_path=save_directory / f"{mlip_name}_result.json",
             mlip_name=mlip_name,
+            model_name=model,
         )

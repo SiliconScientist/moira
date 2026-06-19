@@ -1,9 +1,20 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+
+RELAXATION_SETTING_KEYS = (
+    "optimizer",
+    "f_crit_relax",
+    "n_crit_relax",
+    "rate",
+    "damping",
+    "chemical_bond_cutoff",
+)
 
 
 def enrich_result_file(
@@ -12,6 +23,7 @@ def enrich_result_file(
     dataset_name: str | None = None,
     result_path: str | Path,
     mlip_name: str | None = None,
+    model_name: str | None = None,
 ) -> None:
     from moira.mlip.result_parsing import (
         RESULT_ANALYSIS_KEY,
@@ -50,6 +62,27 @@ def enrich_result_file(
             reaction_data["metadata"] = metadata
             updated = True
 
+    calculation_settings = result.get("calculation_settings")
+    if not isinstance(calculation_settings, dict):
+        calculation_settings = {}
+
+    for reaction, reaction_data in result.items():
+        if reaction == "calculation_settings" or not isinstance(reaction_data, dict):
+            continue
+        metadata = reaction_data.get("metadata")
+        if not isinstance(metadata, dict):
+            continue
+        slab_cache_key = build_slab_cache_key(
+            metadata=metadata,
+            model_name=model_name,
+            mlip_name=mlip_name,
+            calculation_settings=calculation_settings,
+        )
+        if slab_cache_key is None or metadata.get("slab_cache_key") == slab_cache_key:
+            continue
+        metadata["slab_cache_key"] = slab_cache_key
+        updated = True
+
     analysis_by_reaction = detect_anomalies_from_result_dict(result)
     for reaction, analysis_payload in analysis_by_reaction.items():
         reaction_data = result.get(reaction)
@@ -73,13 +106,40 @@ def attach_dataset_metadata_to_result_file(
     dataset_name: str | None = None,
     result_path: str | Path,
     mlip_name: str | None = None,
+    model_name: str | None = None,
 ) -> None:
     enrich_result_file(
         dataset_path=dataset_path,
         dataset_name=dataset_name,
         result_path=result_path,
         mlip_name=mlip_name,
+        model_name=model_name,
     )
+
+
+def build_slab_cache_key(
+    *,
+    metadata: dict[str, Any],
+    model_name: str | None = None,
+    mlip_name: str | None = None,
+    calculation_settings: dict[str, Any] | None = None,
+) -> str | None:
+    parent_slab_id = metadata.get("parent_slab_id")
+    if parent_slab_id is None:
+        return None
+
+    identity = {
+        "parent_slab_id": str(parent_slab_id),
+        "model_name": model_name,
+        "mlip_name": mlip_name,
+        "relaxation_settings": {
+            key: calculation_settings[key]
+            for key in RELAXATION_SETTING_KEYS
+            if calculation_settings is not None and key in calculation_settings
+        },
+    }
+    payload = json.dumps(identity, sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def write_efficiency_summary(

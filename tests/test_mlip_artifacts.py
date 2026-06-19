@@ -27,6 +27,7 @@ from moira.mlip.artifacts import (
 )
 from moira.mlip.result_metadata import (
     attach_dataset_metadata_to_result_file,
+    build_slab_cache_key,
     enrich_result_file,
     write_efficiency_summary,
 )
@@ -269,9 +270,12 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(wide_df.get_column("reaction").to_list(), ["rxn-1->OH*"])
         self.assertEqual(wide_df.get_column("adsorbate").to_list(), ["OH"])
         self.assertEqual(wide_df.get_column("reference_ads_eng").to_list(), [1.0])
+        metadata_json = json.loads(
+            wide_df.get_column("reaction_metadata_json").to_list()[0]
+        )
         self.assertEqual(
-            wide_df.get_column("reaction_metadata_json").to_list(),
-            ['{"adslab_id": "adslab-1", "surface_type": "fcc111"}'],
+            metadata_json,
+            {"adslab_id": "adslab-1", "surface_type": "fcc111"},
         )
         self.assertEqual(wide_df.get_column("mace_mlip_ads_eng_median").to_list(), [1.1])
         self.assertEqual(wide_df.get_column("mace_label").to_list(), ["normal"])
@@ -376,6 +380,7 @@ class MlipArtifactTests(unittest.TestCase):
                         "rxn-1->OH*": {
                             "metadata": {
                                 "adslab_id": "adslab-1",
+                                "parent_slab_id": "slab-1",
                                 "surface_type": "fcc111",
                             }
                         }
@@ -404,12 +409,23 @@ class MlipArtifactTests(unittest.TestCase):
             enrich_result_file(
                 dataset_path=dataset_path,
                 result_path=result_path,
+                model_name="mace",
             )
             payload = json.loads(result_path.read_text(encoding="utf-8"))
 
+        expected_metadata = {
+            "adslab_id": "adslab-1",
+            "parent_slab_id": "slab-1",
+            "surface_type": "fcc111",
+            "slab_cache_key": build_slab_cache_key(
+                metadata={"parent_slab_id": "slab-1"},
+                model_name="mace",
+                calculation_settings={"chemical_bond_cutoff": 1.25},
+            ),
+        }
         self.assertEqual(
             payload["rxn-1->OH*"]["metadata"],
-            {"adslab_id": "adslab-1", "surface_type": "fcc111"},
+            expected_metadata,
         )
         self.assertEqual(
             payload["rxn-1->OH*"][RESULT_ANALYSIS_KEY],
@@ -417,13 +433,8 @@ class MlipArtifactTests(unittest.TestCase):
                 "dft_ads_eng": 1.0,
                 "mlip_ads_eng_median": 1.1,
                 "mlip_ads_eng_single": None,
-                "metadata": {
-                    "adslab_id": "adslab-1",
-                    "surface_type": "fcc111",
-                },
-                "metadata_json": (
-                    '{"adslab_id": "adslab-1", "surface_type": "fcc111"}'
-                ),
+                "metadata": expected_metadata,
+                "metadata_json": json.dumps(expected_metadata, sort_keys=True),
                 "label": "normal",
                 "labels": [],
                 "details": {
@@ -455,6 +466,7 @@ class MlipArtifactTests(unittest.TestCase):
                         "adslab-000001": {
                             "metadata": {
                                 "adslab_id": "adslab-000001",
+                                "parent_slab_id": "slab-000001",
                                 "surface_type": "fcc111",
                             }
                         }
@@ -486,14 +498,64 @@ class MlipArtifactTests(unittest.TestCase):
                     dataset_name="test_n",
                     result_path=result_dir / "7net-omni_result.json",
                     mlip_name="7net-omni",
+                    model_name="sevennet",
                 )
                 payload = json.loads(flat_result_path.read_text(encoding="utf-8"))
 
         self.assertEqual(
             payload["adslab-000001"]["metadata"],
-            {"adslab_id": "adslab-000001", "surface_type": "fcc111"},
+            {
+                "adslab_id": "adslab-000001",
+                "parent_slab_id": "slab-000001",
+                "surface_type": "fcc111",
+                "slab_cache_key": build_slab_cache_key(
+                    metadata={"parent_slab_id": "slab-000001"},
+                    model_name="sevennet",
+                    mlip_name="7net-omni",
+                    calculation_settings={"chemical_bond_cutoff": 1.25},
+                ),
+            },
         )
         self.assertIn(RESULT_ANALYSIS_KEY, payload["adslab-000001"])
+
+    def test_build_slab_cache_key_is_stable_for_same_settings(self) -> None:
+        metadata = {"parent_slab_id": "slab-1"}
+        settings = {
+            "optimizer": "LBFGS",
+            "f_crit_relax": 0.05,
+            "n_crit_relax": 200,
+            "chemical_bond_cutoff": 1.25,
+            "save_step": 50,
+        }
+
+        first = build_slab_cache_key(
+            metadata=metadata,
+            model_name="mace",
+            calculation_settings=settings,
+        )
+        second = build_slab_cache_key(
+            metadata=metadata,
+            model_name="mace",
+            calculation_settings=dict(settings),
+        )
+
+        self.assertEqual(first, second)
+
+    def test_build_slab_cache_key_changes_when_relaxation_settings_change(self) -> None:
+        metadata = {"parent_slab_id": "slab-1"}
+
+        first = build_slab_cache_key(
+            metadata=metadata,
+            model_name="mace",
+            calculation_settings={"optimizer": "LBFGS", "n_crit_relax": 200},
+        )
+        second = build_slab_cache_key(
+            metadata=metadata,
+            model_name="mace",
+            calculation_settings={"optimizer": "LBFGS", "n_crit_relax": 300},
+        )
+
+        self.assertNotEqual(first, second)
 
     def test_enrich_result_file_persists_analysis_without_dataset(self) -> None:
         with TemporaryDirectory() as tmp_dir:
