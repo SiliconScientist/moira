@@ -182,6 +182,8 @@ def write_efficiency_summary(
     total_adslab_steps = 0
     total_atom_steps = 0.0
     time_per_step_per_atom_values: list[float] = []
+    slab_cache_hit_count = 0
+    saved_slab_time_estimate_seconds = 0.0
 
     for _reaction, reaction_data in reactions:
         final = reaction_data.get("final", {})
@@ -199,6 +201,10 @@ def write_efficiency_summary(
         time_per_step_per_atom = final.get("time_per_step_per_atom")
         if time_per_step_per_atom is not None:
             time_per_step_per_atom_values.append(float(time_per_step_per_atom))
+        slab_cache_hit_count += int(final.get("slab_cache_hit_count", 0) or 0)
+        saved_slab_time_estimate_seconds += float(
+            final.get("saved_slab_time_estimate_seconds", 0.0) or 0.0
+        )
 
     total_relaxation_time = total_slab_time + total_adslab_time
     total_relaxation_steps = total_slab_steps + total_adslab_steps
@@ -230,6 +236,9 @@ def write_efficiency_summary(
         "total_relaxation_steps": total_relaxation_steps,
         "total_slab_relaxation_steps": total_slab_steps,
         "total_adslab_relaxation_steps": total_adslab_steps,
+        "slab_cache_hit_count": slab_cache_hit_count,
+        "slab_cache_hit": slab_cache_hit_count > 0,
+        "saved_slab_time_estimate_seconds": saved_slab_time_estimate_seconds,
         "total_atom_steps": total_atom_steps,
         "mean_relaxation_time_seconds_per_reaction": (
             total_relaxation_time / reaction_count if reaction_count > 0 else None

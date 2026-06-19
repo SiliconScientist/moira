@@ -139,6 +139,8 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
                     "adslab_time": 2.5,
                     "slab_steps": 3,
                     "adslab_steps": 4,
+                    "slab_cache_hit": False,
+                    "saved_slab_time_estimate_seconds": 0.0,
                 },
                 "final": {
                     "ads_eng_median": -16.5,
@@ -152,6 +154,9 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
                     "time_total_adslab": 2.5,
                     "steps_total_slab": 3,
                     "steps_total_adslab": 4,
+                    "slab_cache_hit": False,
+                    "slab_cache_hit_count": 0,
+                    "saved_slab_time_estimate_seconds": 0.0,
                     "step_weighted_atoms": 18.0 / 7.0,
                     "time_per_step": 4.0 / 7.0,
                     "time_per_step_per_atom": 4.0 / 18.0,
@@ -289,6 +294,13 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
         self.assertEqual(adslab_relax_calls, 2)
         self.assertEqual(result_a["reaction_result"]["0"]["slab_tot_eng"], -10.0)
         self.assertEqual(result_b["reaction_result"]["0"]["slab_tot_eng"], -10.0)
+        self.assertFalse(result_a["reaction_result"]["final"]["slab_cache_hit"])
+        self.assertTrue(result_b["reaction_result"]["final"]["slab_cache_hit"])
+        self.assertEqual(result_b["reaction_result"]["final"]["slab_cache_hit_count"], 1)
+        self.assertEqual(
+            result_b["reaction_result"]["final"]["saved_slab_time_estimate_seconds"],
+            1.5,
+        )
 
     def test_first_run_misses_and_writes_cache_then_second_run_hits(self) -> None:
         slab = Atoms(
@@ -369,6 +381,9 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
         self.assertEqual(slab_relax_calls, 1)
         self.assertEqual(first["energy"], -10.0)
         self.assertEqual(second["energy"], -10.0)
+        self.assertFalse(first["cache_hit"])
+        self.assertTrue(second["cache_hit"])
+        self.assertEqual(second["saved_time_estimate_seconds"], 1.5)
         self.assertEqual(cached_entry.slab_energy_ev, -10.0)
         self.assertEqual(cached_entry.relaxation_steps, 3)
         self.assertEqual(cached_entry.relaxation_time_seconds, 1.5)

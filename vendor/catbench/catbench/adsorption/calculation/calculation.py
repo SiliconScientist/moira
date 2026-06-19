@@ -320,6 +320,8 @@ class AdsorptionCalculation:
         time_consumed = 0
         steps_total_slab = 0
         steps_total_ads = 0
+        slab_cache_hit_count = 0
+        saved_slab_time_estimate_seconds = 0.0
         
         # Run calculations for each calculator
         for i in range(len(self.calculators)):
@@ -352,6 +354,11 @@ class AdsorptionCalculation:
                         slab_energy = slab_result["energy"]
                         slab_time = slab_result["time"]
                         slab_energy_change = slab_result["energy_change"]
+                        slab_cache_hit = bool(slab_result["cache_hit"])
+                        slab_cache_hit_count += int(slab_cache_hit)
+                        saved_slab_time_estimate_seconds += float(
+                            slab_result["saved_time_estimate_seconds"]
+                        )
                         time_total_slab += slab_result["time"]
                         steps_total_slab += slab_result["steps"]
                         slab_initial = slab_result["initial_atoms"]
@@ -458,6 +465,10 @@ class AdsorptionCalculation:
                 "adslab_time": ads_time,
                 "slab_steps": slab_steps,
                 "adslab_steps": ads_step,
+                "slab_cache_hit": slab_cache_hit,
+                "saved_slab_time_estimate_seconds": slab_result[
+                    "saved_time_estimate_seconds"
+                ],
             }
             
             # Collect data for seed analysis
@@ -505,6 +516,9 @@ class AdsorptionCalculation:
             "time_total_adslab": time_total_ads,
             "steps_total_slab": steps_total_slab,
             "steps_total_adslab": steps_total_ads,
+            "slab_cache_hit": slab_cache_hit_count > 0,
+            "slab_cache_hit_count": slab_cache_hit_count,
+            "saved_slab_time_estimate_seconds": saved_slab_time_estimate_seconds,
             "step_weighted_atoms": step_weighted_atoms,  # Step-weighted average atom count
             "time_per_step": total_time / total_steps if total_steps > 0 else 0,
             "time_per_step_per_atom": total_time / total_atom_steps if total_atom_steps > 0 else 0,  # Weighted average
@@ -561,6 +575,8 @@ class AdsorptionCalculation:
             "time": time_calculated,
             "energy_change": energy_change,
             "displacement_stats": calc_displacement(slab_atoms, relaxed_atoms, z_target),
+            "cache_hit": False,
+            "saved_time_estimate_seconds": 0.0,
         }
         self._store_cached_slab_result(
             reaction_data=reaction_data,
@@ -608,6 +624,8 @@ class AdsorptionCalculation:
             "time": entry.relaxation_time_seconds,
             "energy_change": entry.slab_energy_ev - initial_energy,
             "displacement_stats": dict(displacement_metrics),
+            "cache_hit": True,
+            "saved_time_estimate_seconds": entry.relaxation_time_seconds,
         }
 
     def _store_cached_slab_result(

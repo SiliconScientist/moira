@@ -614,6 +614,8 @@ class MlipArtifactTests(unittest.TestCase):
                                 "time_total_adslab": 3.0,
                                 "steps_total_slab": 4,
                                 "steps_total_adslab": 6,
+                                "slab_cache_hit_count": 1,
+                                "saved_slab_time_estimate_seconds": 2.0,
                                 "step_weighted_atoms": 10.0,
                                 "time_per_step_per_atom": 0.05,
                             }
@@ -624,6 +626,8 @@ class MlipArtifactTests(unittest.TestCase):
                                 "time_total_adslab": 5.0,
                                 "steps_total_slab": 2,
                                 "steps_total_adslab": 8,
+                                "slab_cache_hit_count": 0,
+                                "saved_slab_time_estimate_seconds": 0.0,
                                 "step_weighted_atoms": 12.0,
                                 "time_per_step_per_atom": 0.04,
                             }
@@ -651,6 +655,9 @@ class MlipArtifactTests(unittest.TestCase):
         self.assertEqual(summary["reactions_per_hour_wall"], 360.0)
         self.assertEqual(summary["total_relaxation_time_seconds"], 11.0)
         self.assertEqual(summary["total_relaxation_steps"], 20)
+        self.assertEqual(summary["slab_cache_hit_count"], 1)
+        self.assertTrue(summary["slab_cache_hit"])
+        self.assertEqual(summary["saved_slab_time_estimate_seconds"], 2.0)
         self.assertEqual(summary["total_atom_steps"], 220.0)
         self.assertEqual(summary["mean_relaxation_steps_per_reaction"], 10.0)
         self.assertEqual(summary["shard_index"], 1)
