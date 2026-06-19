@@ -50,7 +50,7 @@ def run(
     dataset_name: str,
     dataset_path: str | None = None,
     device: str = "cuda",
-    config_path: str = "mlip.toml",
+    config_path: str = "config.toml",
     n_calcs: int = 3,
     results_dir_override: str | None = None,
     slab_cache_dir_override: str | None = None,

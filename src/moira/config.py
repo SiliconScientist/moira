@@ -13,5 +13,5 @@ class Config(BaseModel):
     mlip: MLIPConfig
 
 
-def get_config(path: str | Path = "mlip.toml") -> Config:
+def get_config(path: str | Path = "config.toml") -> Config:
     return Config.model_validate(load_toml_file(Path(path)))

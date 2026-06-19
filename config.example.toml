@@ -1,12 +1,24 @@
 # Example MLIP-side configuration.
-# Copy to `mlip.toml` and replace paths/model specs for your environment.
+# Copy to `config.toml` and replace paths/model specs for your environment.
 # This file owns only ingest/MLIP concerns. Dataset-profile, analysis, plot,
-# and learning-curve settings live in `experiment.toml`.
+# and learning-curve settings live elsewhere.
 #
-# Typical usage:
-#   python -m moira --config mlip.toml
+# `moira.ingest` reads `[ingest]`, loads the source dataset, builds CatBench
+# coefficients from `[ingest.stoich]`, and materializes the MLIP-ready dataset
+# that `moira` then runs.
+#
+# Supported ingest profiles:
+# - `vasp_mapping`: `ingest.source` is a mapped VASP systems directory
+# - `elemental_adsorption_ase_db`: `ingest.source` is an ASE DB file
+#
+# Typical workflow:
+#   python -m moira --config config.toml
 # Optional dataset overrides:
-#   python -m moira --config mlip.toml data/raw_data/example_adsorption.json
+#   python -m moira --config config.toml data/raw_data/example_adsorption.json
+#
+# Optional ingest export:
+# - Set `ingest.catbench_folder` to keep the emitted CatBench-style dataset tree
+# - Leave it unset to use a temporary staging directory during the MLIP run
 
 [ingest]
 source = "data/raw_vasp/systems"

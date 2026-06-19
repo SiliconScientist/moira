@@ -75,24 +75,24 @@ class MlipCliTests(unittest.TestCase):
             mlip_main([])
 
         mock_submit_jobs.assert_called_once_with(
-            config_path="mlip.toml",
+            config_path="config.toml",
             run_tag=None,
             datasets=[],
         )
 
     def test_default_invocation_delegates_to_submit_jobs(self) -> None:
         with patch("moira.mlip.submit.submit_jobs") as mock_submit_jobs:
-            mlip_main(["--config", "mlip.toml", "--run-tag", "tag", "dataset.json"])
+            mlip_main(["--config", "config.toml", "--run-tag", "tag", "dataset.json"])
 
         mock_submit_jobs.assert_called_once_with(
-            config_path="mlip.toml",
+            config_path="config.toml",
             run_tag="tag",
             datasets=["dataset.json"],
         )
 
     def test_python_dash_m_moira_mlip_delegates_to_cli_main(self) -> None:
         with patch("moira.mlip.cli.main") as mock_mlip_main:
-            with patch.object(sys, "argv", ["python", "--config", "mlip.toml"]):
+            with patch.object(sys, "argv", ["python", "--config", "config.toml"]):
                 runpy.run_module("moira.mlip", run_name="__main__")
 
         mock_mlip_main.assert_called_once_with()
@@ -108,14 +108,14 @@ class MlipCliTests(unittest.TestCase):
                     "--line",
                     '{"model": "mace", "dataset_name": "example"}',
                     "--config",
-                    "mlip.toml",
+                    "config.toml",
                 ],
             ):
                 runpy.run_module("moira.mlip", run_name="__main__")
 
         mock_run_one_task.assert_called_once_with(
             '{"model": "mace", "dataset_name": "example"}',
-            "mlip.toml",
+            "config.toml",
         )
 
     def test_make_tasks_subcommand_delegates_to_task_writer(self) -> None:
@@ -124,7 +124,7 @@ class MlipCliTests(unittest.TestCase):
                 [
                     "make-tasks",
                     "--config",
-                    "mlip.toml",
+                    "config.toml",
                     "--run-tag",
                     "sharded",
                     "--out",
@@ -134,7 +134,7 @@ class MlipCliTests(unittest.TestCase):
             )
 
         mock_make_tasks.assert_called_once_with(
-            config_path="mlip.toml",
+            config_path="config.toml",
             run_tag="sharded",
             out_path="slurm_output/tasks.jsonl",
             datasets=["dataset.json"],
@@ -201,7 +201,7 @@ class MlipTaskTests(unittest.TestCase):
             tmp = Path(tmp_dir)
             dataset_path = tmp / "example_adsorption.json"
             dataset_path.write_text("{}", encoding="utf-8")
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -249,7 +249,7 @@ class MlipTaskTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -307,7 +307,7 @@ class MlipTaskTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -371,7 +371,7 @@ class MlipTaskTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -411,7 +411,7 @@ class MlipTaskTests(unittest.TestCase):
 class MlipRegistryTests(unittest.TestCase):
     def test_model_specs_expose_importable_adapter_callable(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -440,7 +440,7 @@ class MlipRegistryTests(unittest.TestCase):
             legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
             legacy_python.parent.mkdir(parents=True)
             legacy_python.write_text("", encoding="utf-8")
-            config_path = tmp_path / "mlip.toml"
+            config_path = tmp_path / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -481,7 +481,7 @@ class MlipRegistryTests(unittest.TestCase):
 class ConfigParsingTests(unittest.TestCase):
     def test_get_config_defaults_sharding_fields_to_none(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -524,7 +524,7 @@ class ConfigParsingTests(unittest.TestCase):
 
     def test_get_config_parses_sharding_fields(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -569,7 +569,7 @@ class ConfigParsingTests(unittest.TestCase):
 
     def test_get_config_rejects_conflicting_sharding_settings(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -690,7 +690,7 @@ class LegacyUmaAdapterTests(unittest.TestCase):
             from moira.adapters.legacy.uma_adapter import _resolve_checkpoint_path
 
             with TemporaryDirectory() as tmp_dir:
-                config_path = Path(tmp_dir) / "mlip.toml"
+                config_path = Path(tmp_dir) / "config.toml"
                 with self.assertRaisesRegex(
                     FileNotFoundError,
                     "Legacy UMA requires .*existing checkpoint file.*rootstock",
@@ -703,7 +703,7 @@ class LegacyUmaAdapterTests(unittest.TestCase):
             legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
             legacy_python.parent.mkdir(parents=True)
             legacy_python.write_text("", encoding="utf-8")
-            config_path = tmp_path / "mlip.toml"
+            config_path = tmp_path / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -769,7 +769,7 @@ class LegacyUmaAdapterTests(unittest.TestCase):
             legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
             legacy_python.parent.mkdir(parents=True)
             legacy_python.write_text("", encoding="utf-8")
-            config_path = tmp_path / "mlip.toml"
+            config_path = tmp_path / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -821,7 +821,7 @@ class MlipPreflightTests(unittest.TestCase):
             legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
             legacy_python.parent.mkdir(parents=True)
             legacy_python.write_text("", encoding="utf-8")
-            config_path = tmp_path / "mlip.toml"
+            config_path = tmp_path / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -868,7 +868,7 @@ class MlipPreflightTests(unittest.TestCase):
                         from moira.mlip.submit import submit_jobs
 
                         submit_jobs(
-                            config_path="mlip.toml",
+                            config_path="config.toml",
                             run_tag="run",
                             datasets=[],
                         )
@@ -880,7 +880,7 @@ class MlipPreflightTests(unittest.TestCase):
 class MlipRunnerTests(unittest.TestCase):
     def test_run_one_task_dispatches_adapter_in_process(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -926,7 +926,7 @@ class MlipRunnerTests(unittest.TestCase):
 
     def test_run_one_task_dispatches_legacy_adapter_when_selected(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -972,7 +972,7 @@ class MlipRunnerTests(unittest.TestCase):
 
     def test_run_one_task_accepts_legacy_task_lines(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -1013,7 +1013,7 @@ class MlipRunnerTests(unittest.TestCase):
 
     def test_run_one_task_uses_configured_cpu_device(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -1069,7 +1069,7 @@ class MlipRunnerTests(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -1229,7 +1229,7 @@ class MlipRunnerTests(unittest.TestCase):
                 dataset_name: str,
                 dataset_path: str | None = None,
                 device: str = "cpu",
-                config_path: str = "mlip.toml",
+                config_path: str = "config.toml",
                 results_dir_override: str | None = None,
                 **_: object,
             ) -> None:
@@ -1299,7 +1299,7 @@ class MlipRunnerTests(unittest.TestCase):
                 json.dumps({"rxn-1->OH*": {"value": 1.1}}) + "\n",
                 encoding="utf-8",
             )
-            config_path = tmp / "mlip.toml"
+            config_path = tmp / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [
@@ -1383,7 +1383,7 @@ class MlipRunnerTests(unittest.TestCase):
 class CatbenchPathPatchTests(unittest.TestCase):
     def test_resolve_results_dir_resolves_relative_to_config(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "configs" / "mlip.toml"
+            config_path = Path(tmp_dir) / "configs" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text("", encoding="utf-8")
 
@@ -1399,7 +1399,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
 
     def test_resolve_results_dir_appends_dev_suffix_for_dev_runs(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "configs" / "mlip.toml"
+            config_path = Path(tmp_dir) / "configs" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text("", encoding="utf-8")
 
@@ -1472,7 +1472,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
 
     def test_run_one_task_falls_back_to_cpu_when_cuda_unavailable(self) -> None:
         with TemporaryDirectory() as tmp_dir:
-            config_path = Path(tmp_dir) / "mlip.toml"
+            config_path = Path(tmp_dir) / "config.toml"
             config_path.write_text(
                 "\n".join(
                     [

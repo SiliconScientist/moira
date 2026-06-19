@@ -34,12 +34,12 @@ PYTHONPATH=src python -m unittest
 Single entrypoint:
 
 ```bash
-moira --config mlip.toml
-moira --config mlip.toml --run-tag dev data/raw_data/example_adsorption.json
+moira --config config.toml
+moira --config config.toml --run-tag dev data/raw_data/example_adsorption.json
 ```
 
 `moira` and `python -m moira` both run the config-driven MLIP workflow:
-- Enabled models come from `mlip.toml`
+- Enabled models come from `config.toml`
 - Optional dataset arguments override `mlip.dataset` or `mlip.datasets`
 - Optional `mlip.shard_size` or `mlip.num_shards` split large adsorption JSONs
   into one task per `model x shard`
@@ -55,14 +55,14 @@ moira --config mlip.toml --run-tag dev data/raw_data/example_adsorption.json
 Module entrypoints:
 
 ```bash
-python -m moira --config mlip.toml
-python -m moira.mlip --config mlip.toml
+python -m moira --config config.toml
+python -m moira.mlip --config config.toml
 ```
 
 Sharding helpers:
 
 ```bash
-python -m moira.mlip make-tasks --config mlip.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
+python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
 python -m moira.mlip merge-shards --out data/results/mace_result.json shard_a.json shard_b.json
 ```
 
@@ -83,8 +83,8 @@ Use one sharding mode at a time:
 Typical Slurm flow:
 
 ```bash
-python -m moira.mlip make-tasks --config mlip.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
-sbatch --array=0-$(($(wc -l < slurm_output/mlip_tasks_screen.jsonl)-1)) slurm/mlip_one.sbatch slurm_output/mlip_tasks_screen.jsonl mlip.toml
+python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
+sbatch --array=0-$(($(wc -l < slurm_output/mlip_tasks_screen.jsonl)-1)) slurm/mlip_one.sbatch slurm_output/mlip_tasks_screen.jsonl config.toml
 python -m moira.mlip merge-shards --out data/results/mace_result.json data/results/run/example_shard_00_of_32/mace-mh-1/mace-mh-1_result.json data/results/run/example_shard_01_of_32/mace-mh-1/mace-mh-1_result.json
 ```
 

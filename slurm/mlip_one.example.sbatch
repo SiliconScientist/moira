@@ -20,7 +20,7 @@ else
     ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fi
 TASKFILE="$1"
-CONFIG="${2:-mlip.toml}"
+CONFIG="${2:-config.toml}"
 SUBMIT_DIR="${SLURM_SUBMIT_DIR:-$ROOT_DIR}"
 
 if [[ "$TASKFILE" != /* ]]; then

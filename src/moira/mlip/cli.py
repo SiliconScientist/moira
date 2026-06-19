@@ -13,7 +13,7 @@ def main(argv=None):
             description="Run a single MLIP task line",
         )
         parser.add_argument("--line", required=True)
-        parser.add_argument("--config", default="mlip.toml")
+        parser.add_argument("--config", default="config.toml")
         args = parser.parse_args(argv[1:])
 
         from moira.mlip.runner import run_one_task
@@ -25,7 +25,7 @@ def main(argv=None):
             prog="moira",
             description="Write MLIP task lines from config",
         )
-        parser.add_argument("--config", default="mlip.toml")
+        parser.add_argument("--config", default="config.toml")
         parser.add_argument("--run-tag", default="run")
         parser.add_argument("--out", required=True)
         parser.add_argument("datasets", nargs="*", help="Optional dataset paths")
@@ -97,7 +97,7 @@ def main(argv=None):
         prog="moira",
         description="Run enabled MLIPs from config",
     )
-    parser.add_argument("--config", default="mlip.toml")
+    parser.add_argument("--config", default="config.toml")
     parser.add_argument("--run-tag", default=None)
     parser.add_argument("datasets", nargs="*", help="Optional dataset paths")
     args = parser.parse_args(argv)
