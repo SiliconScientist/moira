@@ -334,39 +334,47 @@ class AdsorptionCalculation:
             for structure in reaction_data["raw"]:
                 if "gas" not in str(structure):
                     POSCAR_str = reaction_data["raw"][structure]["atoms"]
-                    (
-                        energy_calculated,
-                        steps_calculated,
-                        CONTCAR_calculated,
-                        time_calculated,
-                        energy_change,
-                    ) = energy_cal(
-                        self.calculators[i],
-                        POSCAR_str,
-                        self.config["f_crit_relax"],
-                        self.config["n_crit_relax"],
-                        self.config["damping"],
-                        z_target,
-                        self.config["optimizer"],
-                        f"{log_path}/{structure}_{i}.txt" if log_path else None,
-                        f"{traj_path}/{structure}_{i}" if traj_path else None,
-                    )
-                    
-                    ads_energy_calc += energy_calculated * reaction_data["raw"][structure]["stoi"]
-                    time_consumed += time_calculated
-                    
                     if structure == "star":
-                        slab_steps = steps_calculated
-                        slab_displacement_stats = calc_displacement(POSCAR_str, CONTCAR_calculated, z_target)
-                        slab_energy = energy_calculated
-                        slab_time = time_calculated
-                        slab_energy_change = energy_change
-                        time_total_slab += time_calculated
-                        steps_total_slab += steps_calculated
-                        # Store slab structures
-                        slab_initial = POSCAR_str.copy()
-                        slab_final = CONTCAR_calculated.copy()
+                        slab_result = self._relax_slab_structure(
+                            calculator=self.calculators[i],
+                            slab_atoms=POSCAR_str,
+                            z_target=z_target,
+                            log_path=log_path,
+                            traj_path=traj_path,
+                            calculation_index=i,
+                        )
+                        ads_energy_calc += slab_result["energy"] * reaction_data["raw"][structure]["stoi"]
+                        time_consumed += slab_result["time"]
+                        slab_steps = slab_result["steps"]
+                        slab_displacement_stats = slab_result["displacement_stats"]
+                        slab_energy = slab_result["energy"]
+                        slab_time = slab_result["time"]
+                        slab_energy_change = slab_result["energy_change"]
+                        time_total_slab += slab_result["time"]
+                        steps_total_slab += slab_result["steps"]
+                        slab_initial = slab_result["initial_atoms"]
+                        slab_final = slab_result["final_atoms"]
                     else:
+                        (
+                            energy_calculated,
+                            steps_calculated,
+                            CONTCAR_calculated,
+                            time_calculated,
+                            energy_change,
+                        ) = energy_cal(
+                            self.calculators[i],
+                            POSCAR_str,
+                            self.config["f_crit_relax"],
+                            self.config["n_crit_relax"],
+                            self.config["damping"],
+                            z_target,
+                            self.config["optimizer"],
+                            f"{log_path}/{structure}_{i}.txt" if log_path else None,
+                            f"{traj_path}/{structure}_{i}" if traj_path else None,
+                        )
+                        
+                        ads_energy_calc += energy_calculated * reaction_data["raw"][structure]["stoi"]
+                        time_consumed += time_calculated
                         ads_step = steps_calculated
                         ads_displacement_stats = calc_displacement(POSCAR_str, CONTCAR_calculated, z_target)
                         ads_energy = energy_calculated
@@ -501,6 +509,45 @@ class AdsorptionCalculation:
         }
         
         return {"reaction_result": result, "time_consumed": time_consumed}
+
+    def _relax_slab_structure(
+        self,
+        *,
+        calculator,
+        slab_atoms,
+        z_target,
+        log_path,
+        traj_path,
+        calculation_index,
+    ):
+        logfile = f"{log_path}/star_{calculation_index}.txt" if log_path else None
+        trajectory = f"{traj_path}/star_{calculation_index}" if traj_path else None
+        (
+            energy_calculated,
+            steps_calculated,
+            relaxed_atoms,
+            time_calculated,
+            energy_change,
+        ) = energy_cal(
+            calculator,
+            slab_atoms,
+            self.config["f_crit_relax"],
+            self.config["n_crit_relax"],
+            self.config["damping"],
+            z_target,
+            self.config["optimizer"],
+            logfile,
+            trajectory,
+        )
+        return {
+            "energy": energy_calculated,
+            "steps": steps_calculated,
+            "final_atoms": relaxed_atoms.copy(),
+            "initial_atoms": slab_atoms.copy(),
+            "time": time_calculated,
+            "energy_change": energy_change,
+            "displacement_stats": calc_displacement(slab_atoms, relaxed_atoms, z_target),
+        }
     
     def _run_oc20(self):
         """Run OC20 benchmarking mode (adsorbate-only calculations)."""
