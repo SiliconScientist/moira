@@ -9,6 +9,8 @@ from unittest.mock import patch
 
 from ase import Atoms
 
+from moira.mlip.slab_cache import load_slab_cache_entry
+
 
 VENDOR_CATBENCH = Path(__file__).resolve().parents[1] / "vendor" / "catbench"
 if str(VENDOR_CATBENCH) not in sys.path:
@@ -275,3 +277,86 @@ class SlabRelaxationRefactorTests(unittest.TestCase):
         self.assertEqual(adslab_relax_calls, 2)
         self.assertEqual(result_a["reaction_result"]["0"]["slab_tot_eng"], -10.0)
         self.assertEqual(result_b["reaction_result"]["0"]["slab_tot_eng"], -10.0)
+
+    def test_first_run_misses_and_writes_cache_then_second_run_hits(self) -> None:
+        slab = Atoms(
+            "Cu2",
+            positions=[(0.0, 0.0, 0.0), (1.8, 1.8, 0.0)],
+            cell=[(3.6, 0.0, 0.0), (0.0, 3.6, 0.0), (0.0, 0.0, 15.0)],
+            pbc=(True, True, False),
+        )
+        reaction_data = {
+            "metadata": {
+                "reference": {
+                    "parent_slab_id": "slab-000004",
+                }
+            }
+        }
+        calculation = AdsorptionCalculation(
+            calculators=["fake-calculator"],
+            mlip_name="7net-omni",
+            benchmark="test_n",
+            use_slab_cache=True,
+            model_name="sevennet",
+            f_crit_relax=0.05,
+            n_crit_relax=50,
+            damping=1.0,
+            optimizer="LBFGS",
+            rate=0.5,
+        )
+        slab_relax_calls = 0
+
+        def fake_energy_cal(_calculator, atoms, *_args, **_kwargs):
+            nonlocal slab_relax_calls
+            slab_relax_calls += 1
+            relaxed = atoms.copy()
+            relaxed.positions[1, 2] = 0.1
+            return (-10.0, 3, relaxed, 1.5, -0.2)
+
+        def fake_energy_cal_single(_calculator, _atoms):
+            return 1.0
+
+        with TemporaryDirectory() as tmp_dir:
+            with patch.object(
+                calculation_module,
+                "energy_cal",
+                side_effect=fake_energy_cal,
+            ), patch.object(
+                calculation_module,
+                "energy_cal_single",
+                side_effect=fake_energy_cal_single,
+            ), patch.object(
+                calculation_module,
+                "calc_displacement",
+                return_value={"max_disp": 0.11, "mae_mobile": 0.04, "rmsd_mobile": 0.05},
+            ):
+                first = calculation._relax_slab_structure(
+                    calculator="fake-calculator",
+                    slab_atoms=slab,
+                    reaction_data=reaction_data,
+                    save_directory=tmp_dir,
+                    z_target=0.5,
+                    log_path=None,
+                    traj_path=None,
+                    calculation_index=0,
+                )
+                cache_key = calculation._slab_cache_key(reaction_data)
+                cache_path = calculation._slab_cache_path(tmp_dir, cache_key)
+                cached_entry = load_slab_cache_entry(cache_path)
+                second = calculation._relax_slab_structure(
+                    calculator="fake-calculator",
+                    slab_atoms=slab,
+                    reaction_data=reaction_data,
+                    save_directory=tmp_dir,
+                    z_target=0.5,
+                    log_path=None,
+                    traj_path=None,
+                    calculation_index=1,
+                )
+
+        self.assertEqual(slab_relax_calls, 1)
+        self.assertEqual(first["energy"], -10.0)
+        self.assertEqual(second["energy"], -10.0)
+        self.assertEqual(cached_entry.slab_energy_ev, -10.0)
+        self.assertEqual(cached_entry.relaxation_steps, 3)
+        self.assertEqual(cached_entry.relaxation_time_seconds, 1.5)
