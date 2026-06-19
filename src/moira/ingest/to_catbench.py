@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -108,8 +109,15 @@ def _annotate_elemental_catbench_layout(bundle: DatasetBundle) -> DatasetBundle:
     return bundle
 
 
-def main():
-    cfg = get_config()
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(
+        prog="python -m moira.ingest",
+        description="Materialize an ingest dataset from config",
+    )
+    parser.add_argument("--config", default="config.toml")
+    args = parser.parse_args(argv)
+
+    cfg = get_config(args.config)
     bundle = load_dataset(cfg)
     coeff_setting = build_coefficients(cfg, bundle)
     write_dataset(cfg, bundle=bundle, coeff_setting=coeff_setting)

@@ -70,6 +70,22 @@ python -m moira.mlip merge-shards --out data/results/mace_result.json shard_a.js
 enabled, each task record contains the full dataset path plus shard bounds, and the
 runner materializes the shard locally before invoking CatBench.
 
+## Ingest
+
+Use the ingest pipeline directly with:
+
+```bash
+python -m moira.ingest --config config.toml
+```
+
+This reads `[ingest]` from `config.toml`, loads the source dataset, builds the
+CatBench coefficient map from `[ingest.stoich]`, and writes the emitted
+adsorption JSON.
+
+- If `ingest.catbench_folder` is set, Moira keeps the full emitted CatBench-style dataset tree there.
+- If `ingest.catbench_folder` is unset, Moira stages the intermediate dataset in a temporary directory for the current run.
+- `moira.ingest` is a Python module entrypoint, not a shell command. `moira.ingest` by itself will not work in `zsh`.
+
 ## Sharded Runs
 
 Use one sharding mode at a time:
