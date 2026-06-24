@@ -9,6 +9,7 @@ import unittest
 from moira.probe import (
     build_probe_dataset,
     probe_template,
+    raw_adsorbate_structure_key,
     unique_probe_output_path,
     updated_dataset_output_path,
 )
@@ -46,6 +47,18 @@ class ProbeCompatibilityTest(unittest.TestCase):
         self.assertEqual(template.raw_star_key, "OHstar")
         self.assertEqual(template.gas_refs, (("O2gas", -0.5, "O2"), ("h2gas", -0.5, "H2")))
         self.assertEqual(template.dedup_atom_indices, (0,))
+
+    def test_raw_adsorbate_structure_key_supports_non_tolstar_entries(self) -> None:
+        entry = {
+            "raw": {
+                "star": {"atoms_json": "bare"},
+                "OHstar": {"atoms_json": "ads"},
+                "O2gas": {"atoms_json": "gas"},
+                "H2gas": {"atoms_json": "gas"},
+            }
+        }
+
+        self.assertEqual(raw_adsorbate_structure_key(entry, "surface_OH"), "OHstar")
 
     def test_output_path_contract_matches_oasis(self) -> None:
         self.assertEqual(

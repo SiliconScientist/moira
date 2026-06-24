@@ -463,23 +463,36 @@ def build_unique_probe_entry(
     }
 
 
-def load_tolstar_atoms(json_path: Path = DEFAULT_JSON_PATH) -> list[Atoms]:
+def raw_adsorbate_structure_key(entry: dict[str, object], reaction: str) -> str:
+    """Return the raw-key for the adsorbed structure within one dataset entry."""
+    raw = entry.get("raw")
+    if not isinstance(raw, dict):
+        raise ValueError(f"Entry '{reaction}' is missing a raw dict")
+
+    star_keys = [
+        key for key in raw if key.endswith("star") and key != "star"
+    ]
+    if len(star_keys) != 1:
+        raise ValueError(
+            f"Entry '{reaction}' must define exactly one non-bare raw '*star' key, got {star_keys}"
+        )
+    return star_keys[0]
+
+
+def load_adsorbate_template_atoms(json_path: Path = DEFAULT_JSON_PATH) -> list[Atoms]:
     """
-    Build a list of ASE Atoms objects from the nested raw["Tolstar"] entries.
+    Build a list of ASE Atoms objects from the non-bare raw["*star"] entries.
 
     Returns:
-        list[ase.Atoms]: One Atoms object per Tolstar entry in the JSON file.
+        list[ase.Atoms]: One Atoms object per adsorbate-star entry in the JSON file.
     """
     with Path(json_path).open(encoding="utf-8") as handle:
         data = json.load(handle)
 
     atoms_list = []
-    for entry in data.values():
-        raw = entry.get("raw", {})
-        tolstar = raw.get("Tolstar")
-        if tolstar is None:
-            continue
-        atoms_list.append(atoms_from_ase_db_json(tolstar["atoms_json"]))
+    for reaction, entry in data.items():
+        raw_key = raw_adsorbate_structure_key(entry, reaction)
+        atoms_list.append(atoms_from_ase_db_json(entry["raw"][raw_key]["atoms_json"]))
 
     return atoms_list
 
@@ -682,7 +695,9 @@ def write_probe_artifacts(
                         bare_surface=bare_surface,
                         probe_structure=probe_structure,
                         star_template_atoms_json=entry["raw"]["star"]["atoms_json"],
-                        probe_template_atoms_json=entry["raw"]["Tolstar"]["atoms_json"],
+                        probe_template_atoms_json=entry["raw"][
+                            raw_adsorbate_structure_key(entry, reaction)
+                        ]["atoms_json"],
                         probe_template=active_probe_template,
                         gas_reference_by_formula=gas_reference_by_formula,
                     )
