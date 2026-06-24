@@ -16,6 +16,7 @@ dependencies = [
     "numpy",
     "pandas",
     "polars",
+    "pymatgen",
     "pydantic",
     "PyYAML",
     "rootstock",

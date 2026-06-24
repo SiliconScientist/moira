@@ -233,12 +233,12 @@ def _json_safe_metadata(value: Any) -> Any:
 
 
 def _reaction_key(reference) -> str:
-    explicit = reference.metadata.get("adslab_id")
+    explicit = reference.metadata.get("reaction_key")
     if isinstance(explicit, str) and explicit:
         return explicit
     adslab = reference.adslab
     if adslab is not None:
-        explicit = adslab.metadata.get("adslab_id")
+        explicit = adslab.metadata.get("reaction_key")
         if isinstance(explicit, str) and explicit:
             return explicit
     adsorbate_name = _reference_adsorbate_name(reference)
