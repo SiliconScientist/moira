@@ -91,6 +91,26 @@ def main(argv=None):
                 output_dir=args.out,
             )
         return
+    if argv and argv[0] == "probe-artifacts":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Generate probe artifacts from an adsorption dataset",
+        )
+        parser.add_argument("--input", required=True)
+        parser.add_argument("--unique-output", required=True)
+        parser.add_argument("--updated-output", required=True)
+        parser.add_argument("--dev-run", action="store_true")
+        args = parser.parse_args(argv[1:])
+
+        from moira.probe import write_probe_artifacts
+
+        write_probe_artifacts(
+            dataset_path=args.input,
+            unique_output_path=args.unique_output,
+            updated_output_path=args.updated_output,
+            dev_run=args.dev_run,
+        )
+        return
 
     parser = argparse.ArgumentParser(
         prog="moira",

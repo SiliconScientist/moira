@@ -19,7 +19,6 @@ from moira.ingest.site_constraints import (
     find_adsorption_sites_on_slab,
     fix_binding_atom_xy,
     index_by_layers,
-    load_mlip_dataset,
     plane_from_lowest_atoms,
     rewrap_slab_by_largest_gap,
     strip_adsorbate_from_adslab,
@@ -495,15 +494,20 @@ def _dataset_path_from_config(cfg: Config) -> Path:
     return Path(dataset_path)
 
 
-def build_probe_dataset(cfg: Config) -> None:
+def write_probe_artifacts(
+    *,
+    dataset_path: Path,
+    unique_output_path: Path,
+    updated_output_path: Path,
+    dev_run: bool = False,
+) -> None:
     """
-    Build unique probe structures and augment the mlip dataset with unique_probe_ids.
+    Build unique probe structures and augment a dataset with unique_probe_ids.
+    """
+    dataset_path = Path(dataset_path)
+    unique_output_path = Path(unique_output_path)
+    updated_output_path = Path(updated_output_path)
 
-    Produces two output files derived from the configured dataset path:
-    - unique_probe_output_path(dataset_path): unique probe dataset entries
-    - updated_dataset_output_path(dataset_path): original dataset with unique_probe_ids
-    """
-    dataset_path = _dataset_path_from_config(cfg)
     try:
         from pymatgen.analysis.local_env import JmolNN
         from pymatgen.analysis.structure_matcher import StructureMatcher
@@ -517,8 +521,8 @@ def build_probe_dataset(cfg: Config) -> None:
     adaptor = AseAtomsAdaptor()
     jmol_nn = JmolNN()
     structure_matcher = StructureMatcher()
-    dataset = load_mlip_dataset(cfg)
-    dataset_items = islice(dataset.items(), 50) if cfg.mlip.dev_run else dataset.items()
+    dataset = _load_probe_dataset(dataset_path)
+    dataset_items = islice(dataset.items(), 50) if dev_run else dataset.items()
     updated_dataset: dict[str, dict[str, object]] = {}
     unique_probe_structures: dict[str, Atoms] = {}
     unique_probe_match_structures: dict[str, Any] = {}
@@ -644,26 +648,60 @@ def build_probe_dataset(cfg: Config) -> None:
         entry["unique_probe_ids"] = entry_unique_probe_ids
         updated_dataset[reaction] = ordered_dataset_entry(entry)
 
-    output_path = unique_probe_output_path(dataset_path)
-    output_path.write_text(json.dumps(unique_probe_dataset, indent=2) + "\n")
-    updated_output_path = updated_dataset_output_path(dataset_path)
+    unique_output_path.parent.mkdir(parents=True, exist_ok=True)
+    updated_output_path.parent.mkdir(parents=True, exist_ok=True)
+    unique_output_path.write_text(json.dumps(unique_probe_dataset, indent=2) + "\n")
     updated_output_path.write_text(json.dumps(updated_dataset, indent=2) + "\n")
-    print(f"  {len(unique_probe_structures)} unique probe structures -> {output_path}")
+    print(
+        f"  {len(unique_probe_structures)} unique probe structures -> {unique_output_path}"
+    )
     print(f"  Updated dataset -> {updated_output_path}")
 
 
-def main(argv: list[str] | None = None) -> None:
-    from moira.config import get_config
+def _load_probe_dataset(dataset_path: Path) -> dict[str, dict[str, object]]:
+    with dataset_path.open(encoding="utf-8") as f:
+        dataset = json.load(f)
+    if not isinstance(dataset, dict):
+        raise TypeError(
+            f"Expected probe dataset JSON top-level to be an object/dict, got {type(dataset).__name__}"
+        )
+    return dataset
 
+
+def build_probe_dataset(cfg: Config) -> None:
+    """
+    Build unique probe structures and augment the mlip dataset with unique_probe_ids.
+
+    Produces two output files derived from the configured dataset path:
+    - unique_probe_output_path(dataset_path): unique probe dataset entries
+    - updated_dataset_output_path(dataset_path): original dataset with unique_probe_ids
+    """
+    dataset_path = _dataset_path_from_config(cfg)
+    write_probe_artifacts(
+        dataset_path=dataset_path,
+        unique_output_path=unique_probe_output_path(dataset_path),
+        updated_output_path=updated_dataset_output_path(dataset_path),
+        dev_run=cfg.mlip.dev_run,
+    )
+
+
+def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(
         prog="python -m moira.probe",
         description="Build unique probe datasets from an adsorption dataset",
     )
-    parser.add_argument("--config", default="config.toml")
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--unique-output", required=True)
+    parser.add_argument("--updated-output", required=True)
+    parser.add_argument("--dev-run", action="store_true")
     args = parser.parse_args(argv)
 
-    cfg = get_config(args.config)
-    build_probe_dataset(cfg)
+    write_probe_artifacts(
+        dataset_path=Path(args.input),
+        unique_output_path=Path(args.unique_output),
+        updated_output_path=Path(args.updated_output),
+        dev_run=args.dev_run,
+    )
 
 
 if __name__ == "__main__":

@@ -188,6 +188,54 @@ class MlipCliTests(unittest.TestCase):
             output_dir=None,
         )
 
+    def test_probe_artifacts_subcommand_smoke(self) -> None:
+        fixture_dir = Path("tests/fixtures/probe")
+        input_path = fixture_dir / "fixture_tolstar_adsorption.json"
+        expected_updated = json.loads(
+            (fixture_dir / "fixture_tolstar_adsorption_with_probe_ids.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        expected_unique = json.loads(
+            (fixture_dir / "fixture_unique_probe_adsorption.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            unique_output = tmp / "probe" / "unique.json"
+            updated_output = tmp / "probe" / "updated.json"
+
+            mlip_main(
+                [
+                    "probe-artifacts",
+                    "--input",
+                    str(input_path),
+                    "--unique-output",
+                    str(unique_output),
+                    "--updated-output",
+                    str(updated_output),
+                ]
+            )
+
+            actual_updated = json.loads(updated_output.read_text(encoding="utf-8"))
+            actual_unique = json.loads(unique_output.read_text(encoding="utf-8"))
+
+        for reaction, expected_entry in expected_updated.items():
+            comparable_actual = {
+                key: value
+                for key, value in actual_updated[reaction].items()
+                if key != "mlip_feature_matrix"
+            }
+            comparable_expected = {
+                key: value
+                for key, value in expected_entry.items()
+                if key != "mlip_feature_matrix"
+            }
+            self.assertEqual(comparable_actual, comparable_expected)
+        self.assertEqual(actual_unique, expected_unique)
+
 
 class MlipTaskTests(unittest.TestCase):
     def test_make_task_lines_emit_json_records(self) -> None:
