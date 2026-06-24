@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
 from functools import partial
 from itertools import islice
 import argparse
@@ -31,6 +32,15 @@ if TYPE_CHECKING:
 DEFAULT_JSON_PATH = Path(__file__).with_name("KHLOHC_origin_adsorption.json")
 ADSORPTION_SITE_TOLERANCE = 0.5
 GAS_CELL_LENGTH = 15.0
+
+
+@dataclass(frozen=True)
+class ProbeTemplate:
+    symbols: list[str]
+    positions: np.ndarray
+    dedup_atom_indices: tuple[int, ...]
+    raw_star_key: str
+    gas_refs: tuple[tuple[str, float, str], ...]
 
 
 def atoms_from_ase_db_json(atoms_json: str) -> Atoms:
@@ -203,6 +213,16 @@ def methyl_adsorbate_geometry() -> tuple[list[str], np.ndarray, tuple[int, ...]]
     )
 
 
+def hydroxyl_adsorbate_geometry() -> tuple[list[str], np.ndarray, tuple[int, ...]]:
+    """
+    Return a local hydroxyl geometry for oxygen-bound probe visualization.
+
+    The oxygen anchor is at the origin and the O-H bond points along local +z,
+    away from the surface.
+    """
+    return ["O", "H"], np.array([[0.0, 0.0, 0.0], [0.0, 0.0, 0.97]], dtype=float), (0,)
+
+
 def monatomic_adsorbate_geometry(
     element: str,
 ) -> tuple[list[str], np.ndarray, tuple[int, ...]]:
@@ -210,13 +230,45 @@ def monatomic_adsorbate_geometry(
     return [element], np.zeros((1, 3), dtype=float), (0,)
 
 
+def probe_template(adsorbate_element: str) -> ProbeTemplate:
+    """Return the probe template metadata for a bound adsorbate element."""
+    if adsorbate_element == "C":
+        symbols, positions, dedup_atom_indices = methyl_adsorbate_geometry()
+        return ProbeTemplate(
+            symbols=symbols,
+            positions=positions,
+            dedup_atom_indices=dedup_atom_indices,
+            raw_star_key="ch3star",
+            gas_refs=(("ch4gas", -1.0, "CH4"), ("h2gas", 0.5, "H2")),
+        )
+    if adsorbate_element == "O":
+        symbols, positions, dedup_atom_indices = hydroxyl_adsorbate_geometry()
+        return ProbeTemplate(
+            symbols=symbols,
+            positions=positions,
+            dedup_atom_indices=dedup_atom_indices,
+            raw_star_key="OHstar",
+            gas_refs=(("O2gas", -0.5, "O2"), ("h2gas", -0.5, "H2")),
+        )
+
+    symbols, positions, dedup_atom_indices = monatomic_adsorbate_geometry(
+        adsorbate_element
+    )
+    return ProbeTemplate(
+        symbols=symbols,
+        positions=positions,
+        dedup_atom_indices=dedup_atom_indices,
+        raw_star_key=f"{adsorbate_element.lower()}star",
+        gas_refs=(),
+    )
+
+
 def adsorbate_geometry_template(
     adsorbate_element: str,
 ) -> tuple[list[str], np.ndarray, tuple[int, ...]]:
     """Return a visualization adsorbate template for a bound adsorbate element."""
-    if adsorbate_element == "C":
-        return methyl_adsorbate_geometry()
-    return monatomic_adsorbate_geometry(adsorbate_element)
+    template = probe_template(adsorbate_element)
+    return template.symbols, template.positions, template.dedup_atom_indices
 
 
 def add_adsorbates(
@@ -372,8 +424,8 @@ def build_unique_probe_entry(
     probe_structure: Atoms,
     star_template_atoms_json: str,
     probe_template_atoms_json: str,
-    ch4_gas: Atoms,
-    h2_gas: Atoms,
+    probe_template: ProbeTemplate,
+    gas_reference_by_formula: dict[str, Atoms],
 ) -> dict[str, object]:
     """Build one dataset entry for a newly discovered unique probe system."""
     del unique_id
@@ -381,33 +433,31 @@ def build_unique_probe_entry(
     probe_indices = list(range(slab_atom_count, len(probe_structure)))
     constrained_probe_structure = fix_binding_atom_xy(probe_structure, slab_atom_count)
 
-    return {
-        "raw": {
-            "star": {
-                "stoi": -1,
-                "energy_ref": None,
-                "atoms_json": atoms_to_atoms_json_like_template(
-                    bare_surface, star_template_atoms_json
-                ),
-            },
-            "ch3star": {
-                "stoi": 1,
-                "energy_ref": None,
-                "atoms_json": atoms_to_atoms_json_like_template(
-                    constrained_probe_structure, probe_template_atoms_json
-                ),
-            },
-            "ch4gas": {
-                "stoi": -1,
-                "energy_ref": None,
-                "atoms_json": wrap_atoms_json(ch4_gas.copy()),
-            },
-            "h2gas": {
-                "stoi": 0.5,
-                "energy_ref": None,
-                "atoms_json": wrap_atoms_json(h2_gas.copy()),
-            },
+    raw = {
+        "star": {
+            "stoi": -1,
+            "energy_ref": None,
+            "atoms_json": atoms_to_atoms_json_like_template(
+                bare_surface, star_template_atoms_json
+            ),
         },
+        probe_template.raw_star_key: {
+            "stoi": 1,
+            "energy_ref": None,
+            "atoms_json": atoms_to_atoms_json_like_template(
+                constrained_probe_structure, probe_template_atoms_json
+            ),
+        },
+    }
+    for raw_key, stoi, formula in probe_template.gas_refs:
+        raw[raw_key] = {
+            "stoi": stoi,
+            "energy_ref": None,
+            "atoms_json": wrap_atoms_json(gas_reference_by_formula[formula].copy()),
+        }
+
+    return {
+        "raw": raw,
         "ref_ads_eng": None,
         "adsorbate_indices": probe_indices,
     }
@@ -529,8 +579,11 @@ def write_probe_artifacts(
     unique_probe_buckets: dict[tuple[str, int], list[str]] = {}
     unique_probe_dataset: dict[str, dict[str, object]] = {}
     next_unique_probe_id = 0
-    ch4_gas = gas_reference_atoms("CH4")
-    h2_gas = gas_reference_atoms("H2")
+    gas_reference_by_formula = {
+        "CH4": gas_reference_atoms("CH4"),
+        "H2": gas_reference_atoms("H2"),
+        "O2": gas_reference_atoms("O2"),
+    }
 
     for reaction, entry in dataset_items:
         adsorbed_atoms = extract_adsorbed_atom(entry, reaction)
@@ -589,14 +642,12 @@ def write_probe_artifacts(
         entry_unique_probe_sequence: list[tuple[str, Atoms]] = []
         entry_seen_unique_ids: set[str] = set()
         for adsorption_site, adsorbate_element in nearby_site_adsorbates:
-            adsorbate_symbols, adsorbate_positions, dedup_atom_indices = (
-                adsorbate_geometry_template(adsorbate_element)
-            )
+            active_probe_template = probe_template(adsorbate_element)
             probe_structure = add_adsorbates(
                 bare_surface,
                 np.array([adsorption_site]),
-                adsorbate_symbols=adsorbate_symbols,
-                adsorbate_positions=adsorbate_positions,
+                adsorbate_symbols=active_probe_template.symbols,
+                adsorbate_positions=active_probe_template.positions,
                 plane_centroid=plane_centroid,
                 plane_normal=plane_normal,
             )
@@ -604,7 +655,7 @@ def write_probe_artifacts(
                 probe_matching_structure(
                     probe_structure,
                     slab_atom_count=len(bare_surface),
-                    dedup_atom_indices=dedup_atom_indices,
+                    dedup_atom_indices=active_probe_template.dedup_atom_indices,
                 )
             )
             signature = probe_match_signature(match_structure)
@@ -632,8 +683,8 @@ def write_probe_artifacts(
                         probe_structure=probe_structure,
                         star_template_atoms_json=entry["raw"]["star"]["atoms_json"],
                         probe_template_atoms_json=entry["raw"]["Tolstar"]["atoms_json"],
-                        ch4_gas=ch4_gas,
-                        h2_gas=h2_gas,
+                        probe_template=active_probe_template,
+                        gas_reference_by_formula=gas_reference_by_formula,
                     )
                 )
 
