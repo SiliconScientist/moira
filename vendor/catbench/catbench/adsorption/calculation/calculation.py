@@ -170,15 +170,23 @@ class AdsorptionCalculation:
         except FileNotFoundError:
             print("Beginning calculation from scratch.")
             return {}, {}, {}
+
+    def _reaction_items(self, ref_data):
+        """Yield reaction entries while skipping top-level metadata payloads."""
+        for key, value in ref_data.items():
+            if isinstance(key, str) and key.startswith("_"):
+                continue
+            yield key, value
     
     def _run_basic(self):
         """Run basic benchmarking mode (full features with multiple calculators)."""
         ref_data = self._load_data()
+        reaction_items = list(self._reaction_items(ref_data))
         save_directory = self._setup_directories()
         final_result, gas_energies, gas_energies_single = self._load_existing_results(save_directory)
         
         print("Starting calculations...")
-        for index, key in enumerate(ref_data):
+        for index, (key, reaction_data) in enumerate(reaction_items):
             # Skip if already calculated
             if key in final_result:
                 print(f"Skipping already calculated {key}")
@@ -196,8 +204,8 @@ class AdsorptionCalculation:
                     print(f"Removed existing trajectory directory for {key}")
             
             try:
-                print(f"[{index+1}/{len(ref_data)}] {key}")
-                result = self._process_reaction_basic(key, ref_data[key], save_directory, gas_energies, gas_energies_single)
+                print(f"[{index+1}/{len(reaction_items)}] {key}")
+                result = self._process_reaction_basic(key, reaction_data, save_directory, gas_energies, gas_energies_single)
                 final_result[key] = result["reaction_result"]
                 
                 # Save results every save_step calculations
@@ -689,19 +697,20 @@ class AdsorptionCalculation:
     def _run_oc20(self):
         """Run OC20 benchmarking mode (adsorbate-only calculations)."""
         ref_data = self._load_data()
+        reaction_items = list(self._reaction_items(ref_data))
         save_directory = self._setup_directories()
         final_result, _, _ = self._load_existing_results(save_directory)  # gas_energies not needed for OC20
         
         print("Starting calculations...")
-        for index, key in enumerate(ref_data):
+        for index, (key, reaction_data) in enumerate(reaction_items):
             # Skip if already calculated
             if key in final_result:
                 print(f"Skipping already calculated {key}")
                 continue
             
             try:
-                print(f"[{index+1}/{len(ref_data)}] {key}")
-                result = self._process_reaction_oc20(key, ref_data[key], save_directory)
+                print(f"[{index+1}/{len(reaction_items)}] {key}")
+                result = self._process_reaction_oc20(key, reaction_data, save_directory)
                 final_result[key] = result["reaction_result"]
                 
                 # Save results every save_step calculations

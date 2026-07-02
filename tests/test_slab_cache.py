@@ -286,6 +286,48 @@ class SlabCacheTests(unittest.TestCase):
         self.assertEqual(loaded["rxn"]["raw"]["star"]["atoms"].get_chemical_symbols(), ["Cu"])
         self.assertEqual(loaded["rxn"]["raw"]["Hstar"]["atoms"].get_chemical_symbols(), ["Cu", "H"])
 
+    def test_run_basic_skips_top_level_metadata_entries(self) -> None:
+        fixture = {
+            "_structures": {"slab-ref": "ignored"},
+            "rxn-1->N*": {
+                "ref_ads_eng": -0.75,
+                "adsorbate_indices": [2],
+                "metadata": {"reference": {"parent_slab_id": "slab-000004"}},
+                "raw": {},
+            },
+        }
+        calculation = AdsorptionCalculation(
+            calculators=["fake-calculator"],
+            mlip_name="7net-omni",
+            benchmark="test_n",
+            save_files=False,
+            use_slab_cache=False,
+            save_step=50,
+            f_crit_relax=0.05,
+            n_crit_relax=50,
+            damping=1.0,
+            optimizer="LBFGS",
+            rate=0.5,
+        )
+
+        with TemporaryDirectory() as tmp_dir, patch.object(
+            calculation, "_load_data", return_value=fixture
+        ), patch.object(
+            calculation, "_setup_directories", return_value=str(Path(tmp_dir))
+        ), patch.object(
+            calculation, "_process_reaction_basic", return_value={"reaction_result": {"ok": True}}
+        ) as mock_process:
+            run_dir = Path(calculation.run())
+
+        self.assertEqual(run_dir, Path(tmp_dir))
+        mock_process.assert_called_once_with(
+            "rxn-1->N*",
+            fixture["rxn-1->N*"],
+            str(Path(tmp_dir)),
+            {},
+            {},
+        )
+
     def test_two_shards_with_same_parent_slab_id_reuse_shared_slab_cache(self) -> None:
         slab = Atoms(
             "Cu2",
