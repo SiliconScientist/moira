@@ -238,6 +238,31 @@ class MlipCliTests(unittest.TestCase):
 
 
 class MlipTaskTests(unittest.TestCase):
+    def test_shard_json_obj_preserves_top_level_metadata(self) -> None:
+        payload = {
+            "first": {"value": 1},
+            "second": {"value": 2},
+            "third": {"value": 3},
+            "_structures": {"a": "atoms-a"},
+        }
+
+        self.assertEqual(infer_shard_count(payload, shard_size=2), 2)
+        self.assertEqual(
+            shard_json_obj(payload, shard_size=2, shard_index=0),
+            {
+                "first": {"value": 1},
+                "second": {"value": 2},
+                "_structures": {"a": "atoms-a"},
+            },
+        )
+        self.assertEqual(
+            shard_json_obj(payload, shard_size=2, shard_index=1),
+            {
+                "third": {"value": 3},
+                "_structures": {"a": "atoms-a"},
+            },
+        )
+
     def test_make_task_lines_emit_json_records(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)
@@ -329,6 +354,63 @@ class MlipTaskTests(unittest.TestCase):
                     "model": "mace",
                     "dataset_name": "example_dev",
                     "input_path": str(dev_dataset_path.resolve()),
+                },
+            )
+
+    def test_make_task_lines_preserve_top_level_metadata_in_dev_dataset(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "first": {"value": 1, "raw": {"star": {"ref": "a"}}},
+                        "second": {"value": 2, "raw": {"star": {"ref": "b"}}},
+                        "third": {"value": 3, "raw": {"star": {"ref": "c"}}},
+                        "_structures": {
+                            "a": "atoms-a",
+                            "b": "atoms-b",
+                            "c": "atoms-c",
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = true",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            make_task_lines(
+                config_path=config_path,
+                run_tag="dev",
+                datasets=[str(dataset_path)],
+            )
+
+            dev_dataset_path = tmp / "example_dev_adsorption.json"
+            self.assertEqual(
+                json.loads(dev_dataset_path.read_text(encoding="utf-8")),
+                {
+                    "first": {"value": 1, "raw": {"star": {"ref": "a"}}},
+                    "second": {"value": 2, "raw": {"star": {"ref": "b"}}},
+                    "_structures": {
+                        "a": "atoms-a",
+                        "b": "atoms-b",
+                        "c": "atoms-c",
+                    },
                 },
             )
 

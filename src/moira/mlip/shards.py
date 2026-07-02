@@ -4,6 +4,17 @@ from math import ceil
 from typing import Any
 
 
+def _split_dict_entries(obj: dict[Any, Any]) -> tuple[list[tuple[Any, Any]], list[tuple[Any, Any]]]:
+    metadata_items: list[tuple[Any, Any]] = []
+    data_items: list[tuple[Any, Any]] = []
+    for key, value in obj.items():
+        if isinstance(key, str) and key.startswith("_"):
+            metadata_items.append((key, value))
+        else:
+            data_items.append((key, value))
+    return metadata_items, data_items
+
+
 def shard_json_obj(
     obj: Any,
     *,
@@ -85,13 +96,17 @@ def slice_json_obj(obj: Any, *, start: int, stop: int) -> Any:
         return obj[start:stop]
 
     if isinstance(obj, dict):
-        items = list(obj.items())[start:stop]
-        return dict(items)
+        metadata_items, data_items = _split_dict_entries(obj)
+        sliced_items = data_items[start:stop]
+        return dict(metadata_items + sliced_items)
 
     raise TypeError(f"Expected top-level JSON list or dict, got {type(obj).__name__}")
 
 
 def json_obj_size(obj: Any) -> int:
     if isinstance(obj, (list, dict)):
+        if isinstance(obj, dict):
+            _, data_items = _split_dict_entries(obj)
+            return len(data_items)
         return len(obj)
     raise TypeError(f"Expected top-level JSON list or dict, got {type(obj).__name__}")
