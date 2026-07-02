@@ -21,6 +21,7 @@ from moira.ingest.site_constraints import (
     fix_binding_atom_xy,
     index_by_layers,
     plane_from_lowest_atoms,
+    resolve_structure_atoms_json,
     rewrap_slab_by_largest_gap,
     strip_adsorbate_from_adslab,
 )
@@ -48,6 +49,8 @@ def atoms_from_ase_db_json(atoms_json: str) -> Atoms:
     decoded = jsonio.decode(atoms_json)
     row_id = decoded["ids"][0]
     row = decoded[row_id]
+    if isinstance(row, Atoms):
+        return row
     atom_count = len(row["numbers"])
     for key in (
         "momenta",
@@ -491,8 +494,19 @@ def load_adsorbate_template_atoms(json_path: Path = DEFAULT_JSON_PATH) -> list[A
 
     atoms_list = []
     for reaction, entry in data.items():
+        if reaction.startswith("_"):
+            continue
         raw_key = raw_adsorbate_structure_key(entry, reaction)
-        atoms_list.append(atoms_from_ase_db_json(entry["raw"][raw_key]["atoms_json"]))
+        atoms_list.append(
+            atoms_from_ase_db_json(
+                resolve_structure_atoms_json(
+                    data,
+                    entry["raw"][raw_key],
+                    reaction=reaction,
+                    structure_key=raw_key,
+                )
+            )
+        )
 
     return atoms_list
 
@@ -599,7 +613,7 @@ def write_probe_artifacts(
     }
 
     for reaction, entry in dataset_items:
-        adsorbed_atoms = extract_adsorbed_atom(entry, reaction)
+        adsorbed_atoms = extract_adsorbed_atom(entry, reaction, dataset=dataset)
         adsorbate_indices = extract_adsorbate_indices(entry, reaction)
         bare_surface_unwrapped = strip_adsorbate_from_adslab(
             adsorbed_atoms, adsorbate_indices
@@ -694,10 +708,18 @@ def write_probe_artifacts(
                         unique_id=matching_unique_id,
                         bare_surface=bare_surface,
                         probe_structure=probe_structure,
-                        star_template_atoms_json=entry["raw"]["star"]["atoms_json"],
-                        probe_template_atoms_json=entry["raw"][
-                            raw_adsorbate_structure_key(entry, reaction)
-                        ]["atoms_json"],
+                        star_template_atoms_json=resolve_structure_atoms_json(
+                            dataset,
+                            entry["raw"]["star"],
+                            reaction=reaction,
+                            structure_key="star",
+                        ),
+                        probe_template_atoms_json=resolve_structure_atoms_json(
+                            dataset,
+                            entry["raw"][raw_adsorbate_structure_key(entry, reaction)],
+                            reaction=reaction,
+                            structure_key=raw_adsorbate_structure_key(entry, reaction),
+                        ),
                         probe_template=active_probe_template,
                         gas_reference_by_formula=gas_reference_by_formula,
                     )
@@ -731,7 +753,11 @@ def _load_probe_dataset(dataset_path: Path) -> dict[str, dict[str, object]]:
         raise TypeError(
             f"Expected probe dataset JSON top-level to be an object/dict, got {type(dataset).__name__}"
         )
-    return dataset
+    return {
+        reaction: entry
+        for reaction, entry in dataset.items()
+        if not reaction.startswith("_")
+    }
 
 
 def build_probe_dataset(cfg: Config) -> None:

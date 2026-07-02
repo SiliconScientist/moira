@@ -8,11 +8,13 @@ import unittest
 
 from moira.probe import (
     build_probe_dataset,
+    load_adsorbate_template_atoms,
     probe_template,
     raw_adsorbate_structure_key,
     unique_probe_output_path,
     updated_dataset_output_path,
 )
+from moira.ingest.site_constraints import extract_adsorbed_atom
 
 
 FIXTURE_DIR = Path(__file__).with_name("fixtures") / "probe"
@@ -59,6 +61,32 @@ class ProbeCompatibilityTest(unittest.TestCase):
         }
 
         self.assertEqual(raw_adsorbate_structure_key(entry, "surface_OH"), "OHstar")
+
+    def test_bm_style_ref_indirection_is_resolved(self) -> None:
+        atoms_json = "{\"1\": {\"numbers\": {\"__ndarray__\": [[1], \"int64\", [1]]}, \"positions\": {\"__ndarray__\": [[1, 3], \"float64\", [0.0, 0.0, 0.0]]}, \"cell\": {\"__ndarray__\": [[3, 3], \"float64\", [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]]}, \"pbc\": {\"__ndarray__\": [[3], \"bool\", [true, true, true]]}, \"__ase_objtype__\": \"atoms\"}, \"ids\": [1], \"nextid\": 2}"
+        payload = {
+            "rxn": {
+                "raw": {
+                    "star": {"ref": "slab-ref"},
+                    "Hstar": {"ref": "ads-ref"},
+                }
+            },
+            "_structures": {
+                "slab-ref": atoms_json,
+                "ads-ref": atoms_json,
+            },
+        }
+
+        adsorbed = extract_adsorbed_atom(payload["rxn"], "rxn", dataset=payload)
+        self.assertEqual(len(adsorbed), 1)
+
+        with TemporaryDirectory() as tmpdir:
+            dataset_path = Path(tmpdir) / "bm_adsorption.json"
+            dataset_path.write_text(json.dumps(payload), encoding="utf-8")
+            atoms_list = load_adsorbate_template_atoms(dataset_path)
+
+        self.assertEqual(len(atoms_list), 1)
+        self.assertEqual(len(atoms_list[0]), 1)
 
     def test_output_path_contract_matches_oasis(self) -> None:
         self.assertEqual(

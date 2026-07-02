@@ -181,24 +181,31 @@ def load_catbench_json(filepath: str) -> Dict[str, Any]:
     # Load JSON data
     with open(filepath, 'r') as f:
         json_data = json.load(f)
+
+    structure_index = json_data.get("_structures")
     
     # Convert JSON strings back to Atoms objects
     for reaction_key in json_data:
         # Handle adsorption data format (with "raw")
         if "raw" in json_data[reaction_key]:
             for structure_key in json_data[reaction_key]["raw"]:
-                if "atoms_json" in json_data[reaction_key]["raw"][structure_key]:
-                    atoms_json_str = json_data[reaction_key]["raw"][structure_key]["atoms_json"]
-                    
+                structure_block = json_data[reaction_key]["raw"][structure_key]
+                atoms_json_str = structure_block.get("atoms_json")
+                if not isinstance(atoms_json_str, str):
+                    ref = structure_block.get("ref")
+                    if isinstance(ref, str) and isinstance(structure_index, dict):
+                        atoms_json_str = structure_index.get(ref)
+
+                if isinstance(atoms_json_str, str):
                     # Convert JSON string back to Atoms object
                     buffer = io.StringIO(atoms_json_str)
                     atoms_obj = read(buffer, format='json')
-                    
+
                     # Replace JSON string with Atoms object
-                    json_data[reaction_key]["raw"][structure_key]["atoms"] = atoms_obj
-                    del json_data[reaction_key]["raw"][structure_key]["atoms_json"]
-        
-        # Handle surface energy / bulk formation data format
+                    structure_block["atoms"] = atoms_obj
+                    structure_block["atoms_json"] = atoms_json_str
+    
+    # Handle surface energy / bulk formation data format
         for key in ["surface", "star", "bulk", "target"]:
             if key in json_data[reaction_key] and "atoms_json" in json_data[reaction_key][key]:
                 atoms_json_str = json_data[reaction_key][key]["atoms_json"]

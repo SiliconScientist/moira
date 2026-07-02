@@ -69,6 +69,8 @@ def atoms_from_atoms_json(atoms_json: str) -> Atoms:
         raise ValueError("Could not find atom row key in atoms_json payload")
 
     row = decoded[row_key]
+    if isinstance(row, Atoms):
+        return row
     atoms = Atoms(
         numbers=row["numbers"],
         positions=row["positions"],
@@ -90,7 +92,48 @@ def atoms_from_atoms_json(atoms_json: str) -> Atoms:
     return atoms
 
 
-def extract_adsorbed_atom(entry: dict[str, Any], reaction: str) -> Atoms:
+def resolve_structure_atoms_json(
+    dataset: dict[str, Any],
+    structure_block: dict[str, Any],
+    *,
+    reaction: str,
+    structure_key: str,
+) -> str:
+    """
+    Return atoms_json for one raw structure block.
+
+    Supports both inline CatBench payloads and BM-style indirection via
+    ``raw.*.ref`` with top-level ``_structures``.
+    """
+    atoms_json = structure_block.get("atoms_json")
+    if isinstance(atoms_json, str):
+        return atoms_json
+
+    ref = structure_block.get("ref")
+    if not isinstance(ref, str) or not ref:
+        raise ValueError(
+            f"Entry '{reaction}' key '{structure_key}' is missing 'atoms_json' and usable 'ref'"
+        )
+
+    structure_index = dataset.get("_structures")
+    if not isinstance(structure_index, dict):
+        raise ValueError(
+            f"Entry '{reaction}' key '{structure_key}' references '{ref}' but dataset is missing top-level '_structures'"
+        )
+
+    resolved = structure_index.get(ref)
+    if not isinstance(resolved, str):
+        raise ValueError(
+            f"Entry '{reaction}' key '{structure_key}' references unknown structure '{ref}'"
+        )
+    return resolved
+
+
+def extract_adsorbed_atom(
+    entry: dict[str, Any],
+    reaction: str,
+    dataset: dict[str, Any] | None = None,
+) -> Atoms:
     """
     Extract adsorbed ASE Atoms objects from reaction entries.
 
@@ -108,12 +151,18 @@ def extract_adsorbed_atom(entry: dict[str, Any], reaction: str) -> Atoms:
 
     adsorbed_key = adsorbed_keys[0]
     adsorbed_block = raw[adsorbed_key]
-    if not isinstance(adsorbed_block, dict) or "atoms_json" not in adsorbed_block:
-        raise ValueError(
-            f"Entry '{reaction}' key '{adsorbed_key}' is missing 'atoms_json'"
-        )
+    if not isinstance(adsorbed_block, dict):
+        raise ValueError(f"Entry '{reaction}' key '{adsorbed_key}' is not a structure dict")
 
-    return atoms_from_atoms_json(adsorbed_block["atoms_json"])
+    dataset_payload = dataset or entry
+    return atoms_from_atoms_json(
+        resolve_structure_atoms_json(
+            dataset_payload,
+            adsorbed_block,
+            reaction=reaction,
+            structure_key=adsorbed_key,
+        )
+    )
 
 
 def extract_adsorbate_indices(entry: dict[str, Any], reaction: str) -> list[int]:
@@ -435,7 +484,10 @@ def atoms_to_atoms_json_like_template(atoms: Atoms, template_atoms_json: str) ->
 
 
 def build_shifted_constrained_adsorption_entry(
-    entry: dict[str, Any], shifted_atoms: Atoms, reaction: str
+    entry: dict[str, Any],
+    shifted_atoms: Atoms,
+    reaction: str,
+    dataset: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Return a new dataset where each adsorbed *star atoms_json is replaced with shifted+constrained atoms.
@@ -451,14 +503,20 @@ def build_shifted_constrained_adsorption_entry(
 
     adsorbed_key = adsorbed_keys[0]
     adsorbed_block = raw[adsorbed_key]
-    if not isinstance(adsorbed_block, dict) or "atoms_json" not in adsorbed_block:
-        raise ValueError(
-            f"Entry '{reaction}' key '{adsorbed_key}' is missing 'atoms_json'"
-        )
+    if not isinstance(adsorbed_block, dict):
+        raise ValueError(f"Entry '{reaction}' key '{adsorbed_key}' is not a structure dict")
 
+    dataset_payload = dataset or entry
     adsorbed_block["atoms_json"] = atoms_to_atoms_json_like_template(
-        shifted_atoms, adsorbed_block["atoms_json"]
+        shifted_atoms,
+        resolve_structure_atoms_json(
+            dataset_payload,
+            adsorbed_block,
+            reaction=reaction,
+            structure_key=adsorbed_key,
+        ),
     )
+    adsorbed_block.pop("ref", None)
     return updated_entry
 
 

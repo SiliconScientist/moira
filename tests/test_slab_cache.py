@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor
+import io
 from json import JSONDecodeError
 import importlib
 import json
@@ -11,6 +12,8 @@ import unittest
 from unittest.mock import patch
 
 from ase import Atoms
+from ase.io import write
+import numpy as np
 
 from moira.mlip.slab_cache import (
     SlabCacheEntry,
@@ -28,6 +31,8 @@ for module_name in (
     "catbench.adsorption",
     "catbench.adsorption.calculation",
     "catbench.adsorption.calculation.calculation",
+    "catbench.utils",
+    "catbench.utils.data_utils",
 ):
     sys.modules.pop(module_name, None)
 
@@ -35,6 +40,7 @@ calculation_module = importlib.import_module(
     "catbench.adsorption.calculation.calculation"
 )
 AdsorptionCalculation = calculation_module.AdsorptionCalculation
+load_catbench_json = importlib.import_module("catbench.utils.data_utils").load_catbench_json
 
 
 class SlabCacheTests(unittest.TestCase):
@@ -237,6 +243,48 @@ class SlabCacheTests(unittest.TestCase):
         self.assertEqual(result["time_consumed"], 4.0)
         self.assertEqual(result["reaction_result"]["final"]["slab_cache_hit_count"], 0)
         self.assertFalse(result["reaction_result"]["0"]["slab_cache_hit"])
+
+    def test_vendor_loader_resolves_bm_style_structure_refs(self) -> None:
+        slab = Atoms(
+            "Cu",
+            positions=[(0.0, 0.0, 0.0)],
+            cell=np.eye(3),
+            pbc=(True, True, True),
+        )
+        adslab = Atoms(
+            "CuH",
+            positions=[(0.0, 0.0, 0.0), (0.0, 0.0, 1.0)],
+            cell=np.eye(3),
+            pbc=(True, True, True),
+        )
+
+        def atoms_json(atoms: Atoms) -> str:
+            buffer = io.StringIO()
+            write(buffer, atoms, format="json")
+            return buffer.getvalue()
+
+        payload = {
+            "rxn": {
+                "raw": {
+                    "star": {"ref": "slab-ref", "stoi": -1, "energy_ref": -1.0},
+                    "Hstar": {"ref": "ads-ref", "stoi": 1, "energy_ref": -0.5},
+                },
+                "ref_ads_eng": 0.5,
+                "adsorbate_indices": [1],
+            },
+            "_structures": {
+                "slab-ref": atoms_json(slab),
+                "ads-ref": atoms_json(adslab),
+            },
+        }
+
+        with TemporaryDirectory() as tmp_dir:
+            path = Path(tmp_dir) / "bm_adsorption.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            loaded = load_catbench_json(str(path))
+
+        self.assertEqual(loaded["rxn"]["raw"]["star"]["atoms"].get_chemical_symbols(), ["Cu"])
+        self.assertEqual(loaded["rxn"]["raw"]["Hstar"]["atoms"].get_chemical_symbols(), ["Cu", "H"])
 
     def test_two_shards_with_same_parent_slab_id_reuse_shared_slab_cache(self) -> None:
         slab = Atoms(
