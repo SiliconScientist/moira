@@ -2,10 +2,11 @@
 # This is a newer torch/PyG stack than AlphaNet upstream documents.
 --index-url https://download.pytorch.org/whl/cu126
 --extra-index-url https://pypi.org/simple
---find-links https://data.pyg.org/whl/torch-2.6.0+cu126.html
+--find-links https://data.pyg.org/whl/torch-2.10.0+cu126.html
 ase==3.26.0
-torch==2.6.0
+torch==2.10.0
 torch_geometric
+torch_scatter==2.1.2
 lightning
 tensorboard
 git+https://github.com/zmyybc/AlphaNet.git@jax_and_zbl
