@@ -27,6 +27,7 @@ def run(
     slab_cache_dir_override: str | None = None,
 ) -> None:
     config = load_config(config_path)
+    optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
     dev_run = bool(config.get("mlip", {}).get("dev_run", False))
     results_dir = (
         Path(results_dir_override).resolve()
@@ -67,6 +68,7 @@ def run(
             calculators,
             mlip_name=mlip_name,
             benchmark=dataset_name,
+            optimizer=optimizer,
             model_name=model,
             slab_cache_dir=slab_cache_dir_override,
         )

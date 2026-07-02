@@ -783,6 +783,70 @@ class DatasetShardTests(unittest.TestCase):
 
 
 class LegacyUmaAdapterTests(unittest.TestCase):
+    def test_legacy_mace_adapter_uses_configured_optimizer(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.mace_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_mace = ModuleType("mace")
+        fake_mace_calculators = ModuleType("mace.calculators")
+        fake_mace_calculators.mace_mp = Mock(return_value=Mock())
+        fake_mace.calculators = fake_mace_calculators
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "mace": fake_mace,
+                "mace.calculators": fake_mace_calculators,
+            },
+        ):
+            from moira.adapters.legacy import mace_adapter
+
+            with TemporaryDirectory() as tmp_dir, patch.object(
+                mace_adapter, "load_config",
+                return_value={
+                    "mlip": {
+                        "optimizer": "FIRE",
+                        "dev_run": False,
+                        "rootstock": {
+                            "models": {
+                                "mace": {
+                                    "checkpoint": "medium",
+                                    "mlip_name": "mace-mh-1",
+                                }
+                            }
+                        },
+                    }
+                },
+            ), patch.object(
+                mace_adapter, "resolve_results_dir", return_value=Path(tmp_dir) / "results"
+            ), patch.object(
+                mace_adapter, "patch_adsorption_paths"
+            ) as mock_patch_paths, patch.object(
+                mace_adapter, "enrich_result_file"
+            ):
+                mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                mace_adapter.run(
+                    model="mace",
+                    dataset_name="example",
+                    dataset_path="data/raw_data/example.json",
+                    device="cpu",
+                    config_path="config.toml",
+                )
+
+        fake_adsorption.AdsorptionCalculation.assert_called_once()
+        self.assertEqual(
+            fake_adsorption.AdsorptionCalculation.call_args.kwargs["optimizer"],
+            "FIRE",
+        )
+
     def test_legacy_uma_rejects_rootstock_alias_checkpoint(self) -> None:
         sys.modules.pop("moira.adapters.legacy.uma_adapter", None)
         fake_catbench = ModuleType("catbench")
