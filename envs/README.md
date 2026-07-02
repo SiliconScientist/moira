@@ -29,5 +29,6 @@ vendored source at `vendor/catbench` via `mlip.catbench_source` and
 injected into the Rootstock adapter subprocess with `PYTHONPATH`.
 
 `alphanet` is the one exception that needs extra care for accelerator support:
-its requirements file now follows AlphaNet's simpler CUDA torch stack instead
-of the optional JAX/Haiku path.
+its requirements file follows the simpler torch path instead of the optional
+JAX/Haiku path, but uses a newer PyTorch Geometric wheel set than AlphaNet
+upstream documents so it can stay on the project-wide Python 3.13 default.

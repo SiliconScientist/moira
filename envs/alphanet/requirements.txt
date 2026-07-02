@@ -1,11 +1,12 @@
-# Simpler CUDA setup using AlphaNet's torch-based ASE calculator.
---extra-index-url https://download.pytorch.org/whl/cu121
---find-links https://pytorch-geometric.com/whl/torch-2.1.2%2Bcu121.html
+# Minimal AlphaNet torch/CUDA environment for the shared Python 3.13 default.
+# This is a newer torch/PyG stack than AlphaNet upstream documents.
+--index-url https://download.pytorch.org/whl/cu126
+--extra-index-url https://pypi.org/simple
+--find-links https://data.pyg.org/whl/torch-2.6.0+cu126.html
 ase==3.26.0
-lightning
-numpy==1.26.4
-tensorboard
-torch==2.1.2
+torch==2.6.0
 torch_geometric
 torch_scatter
+lightning
+tensorboard
 git+https://github.com/zmyybc/AlphaNet.git@jax_and_zbl
