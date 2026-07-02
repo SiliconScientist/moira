@@ -27,3 +27,7 @@ Rootstock is installed in the main project environment and dispatches to
 its own prebuilt MLIP environments. CatBench is provided from the shared
 vendored source at `vendor/catbench` via `mlip.catbench_source` and
 injected into the Rootstock adapter subprocess with `PYTHONPATH`.
+
+`alphanet` is the one exception that needs extra care for accelerator support:
+its requirements file now follows AlphaNet's simpler CUDA torch stack instead
+of the optional JAX/Haiku path.

@@ -601,6 +601,45 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
 
+    def test_model_specs_include_alphanet_legacy_adapter(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "alphanet" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["alphanet"]',
+                        "",
+                        "[mlip.rootstock.models.alphanet]",
+                        'model = "alphanet"',
+                        'mlip_name = "alphanet-oma-v1"',
+                        'checkpoint = "model.ckpt"',
+                        "",
+                        "[mlip.rootstock.models.alphanet.metadata]",
+                        'config = "oma.json"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(
+            specs["alphanet"].adapter_module,
+            "moira.adapters.legacy.alphanet_adapter",
+        )
+        self.assertEqual(specs["alphanet"].python, str(legacy_python.resolve()))
+
 
 class ConfigParsingTests(unittest.TestCase):
     def test_get_config_defaults_sharding_fields_to_none(self) -> None:
@@ -846,6 +885,93 @@ class LegacyUmaAdapterTests(unittest.TestCase):
             fake_adsorption.AdsorptionCalculation.call_args.kwargs["optimizer"],
             "FIRE",
         )
+
+    def test_legacy_alphanet_adapter_uses_torch_ase_calculator(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.alphanet_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_alphanet = ModuleType("alphanet")
+        fake_alphanet_config = ModuleType("alphanet.config")
+        fake_alphanet_infer = ModuleType("alphanet.infer")
+        fake_alphanet_infer_calc = ModuleType("alphanet.infer.calc")
+        fake_config = Mock()
+        fake_all_config = Mock()
+        fake_all_config.from_json.return_value = fake_config
+        fake_alphanet_config.All_Config = Mock(return_value=fake_all_config)
+        fake_calculator = Mock(return_value=Mock())
+        fake_alphanet_infer_calc.AlphaNetCalculator = fake_calculator
+        fake_alphanet.infer = fake_alphanet_infer
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "alphanet": fake_alphanet,
+                "alphanet.config": fake_alphanet_config,
+                "alphanet.infer": fake_alphanet_infer,
+                "alphanet.infer.calc": fake_alphanet_infer_calc,
+            },
+        ):
+            from moira.adapters.legacy import alphanet_adapter
+
+            with TemporaryDirectory() as tmp_dir:
+                tmp = Path(tmp_dir)
+                checkpoint = tmp / "model.ckpt"
+                checkpoint.write_text("", encoding="utf-8")
+                alpha_config = tmp / "oma.json"
+                alpha_config.write_text("{}", encoding="utf-8")
+
+                with patch.object(
+                    alphanet_adapter,
+                    "load_config",
+                    return_value={
+                        "mlip": {
+                            "optimizer": "FIRE",
+                            "dev_run": False,
+                            "rootstock": {
+                                "models": {
+                                    "alphanet": {
+                                        "checkpoint": str(checkpoint),
+                                        "mlip_name": "alphanet-oma-v1",
+                                        "metadata": {
+                                            "config": str(alpha_config),
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    },
+                ), patch.object(
+                    alphanet_adapter,
+                    "resolve_results_dir",
+                    return_value=tmp / "results",
+                ), patch.object(
+                    alphanet_adapter, "patch_adsorption_paths"
+                ) as mock_patch_paths, patch.object(
+                    alphanet_adapter, "enrich_result_file"
+                ):
+                    mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                    mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                    alphanet_adapter.run(
+                        model="alphanet",
+                        dataset_name="example",
+                        dataset_path="data/raw_data/example.json",
+                        device="cpu",
+                        config_path=str(tmp / "config.toml"),
+                    )
+
+        fake_alphanet_config.All_Config.assert_called_once_with()
+        fake_all_config.from_json.assert_called_once_with(str(alpha_config))
+        fake_calculator.assert_called()
+        self.assertEqual(fake_calculator.call_args.kwargs["ckpt_path"], str(checkpoint))
+        self.assertEqual(fake_calculator.call_args.kwargs["config"], fake_config)
+        self.assertEqual(fake_calculator.call_args.kwargs["device"], "cpu")
 
     def test_legacy_uma_rejects_rootstock_alias_checkpoint(self) -> None:
         sys.modules.pop("moira.adapters.legacy.uma_adapter", None)

@@ -102,3 +102,13 @@ mlip_name = "uma-s-1p1"
 
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
+
+# Add "alphanet" to mlip.models.enabled only when adapter_backend = "legacy".
+[mlip.rootstock.models.alphanet]
+model = "alphanet"
+mlip_name = "alphanet-oma-v1"
+# Legacy AlphaNet uses a real torch checkpoint file, not a Rootstock alias.
+checkpoint = "models/alphanet/model.ckpt"
+
+[mlip.rootstock.models.alphanet.metadata]
+config = "models/alphanet/oma.json"
