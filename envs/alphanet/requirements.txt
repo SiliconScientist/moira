@@ -6,7 +6,6 @@
 ase==3.26.0
 torch==2.6.0
 torch_geometric
-torch_scatter
 lightning
 tensorboard
 git+https://github.com/zmyybc/AlphaNet.git@jax_and_zbl
