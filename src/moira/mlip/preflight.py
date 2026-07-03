@@ -8,6 +8,7 @@ from moira.mlip.registry import get_model_specs
 
 LEGACY_MODEL_IMPORTS = {
     "alphanet": "alphanet",
+    "grace": "tensorpotential",
     "mace": "mace",
     "mattersim": "mattersim",
     "orb_v3": "orb_models",

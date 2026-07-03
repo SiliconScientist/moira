@@ -8,6 +8,7 @@ ORB_V3_PYTHON_VERSION="${ORB_V3_PYTHON_VERSION:-3.12}"
 UV_BIN="${UV_BIN:-uv}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/moira-mlip-envs.XXXXXX")"
 FORCE_REBUILD=0
+GRACE_GIT_REF="${GRACE_GIT_REF:-ce505520e28b15daf3984c40bcf0992b148ce58f}"
 
 usage() {
     cat <<'EOF'
@@ -19,6 +20,7 @@ Options:
 Environment:
   PYTHON_VERSION          Default Python version for MLIP environments.
   ORB_V3_PYTHON_VERSION   Python version for envs/orb_v3.
+  GRACE_GIT_REF           Commit/tag to install for envs/grace.
 EOF
 }
 
@@ -82,6 +84,12 @@ install_requirements() {
     local ready_file="$model_dir/.venv/.moira-ready"
 
     "$UV_BIN" pip install --python "$venv_python" -r "$req_file"
+
+    if [[ "$(basename "$model_dir")" == "grace" ]]; then
+        "$UV_BIN" pip install --python "$venv_python" --no-deps \
+            "git+https://github.com/ICAMS/grace-tensorpotential.git@${GRACE_GIT_REF}"
+    fi
+
     touch "$ready_file"
 }
 

@@ -22,6 +22,7 @@ class ModelSpec:
 
 LEGACY_ADAPTER_MODULES = {
     "alphanet": "moira.adapters.legacy.alphanet_adapter",
+    "grace": "moira.adapters.legacy.grace_adapter",
     "mace": "moira.adapters.legacy.mace_adapter",
     "mattersim": "moira.adapters.legacy.mattersim_adapter",
     "orb_v3": "moira.adapters.legacy.orb_v3_adapter",

@@ -1,0 +1,16 @@
+# Python 3.13-compatible base dependencies for GRACE.
+# Install tensorpotential itself separately with --no-deps from GitHub until
+# upstream publishes metadata that allows the TensorFlow 2.21 line.
+ase==3.26.0
+numpy<3.0.0
+pandas<3.0.0
+scipy
+matscipy
+sympy
+pyyaml>=6.0.2
+tqdm
+questionary>=2.0
+rich>=13.0
+tensorflow==2.21.0
+tf_keras==2.21.0
+setuptools<83

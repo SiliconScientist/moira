@@ -32,3 +32,11 @@ injected into the Rootstock adapter subprocess with `PYTHONPATH`.
 its requirements file follows the simpler torch path instead of the optional
 JAX/Haiku path, but uses a newer PyTorch Geometric wheel set than AlphaNet
 upstream documents so it can stay on the project-wide Python 3.13 default.
+
+`grace` now has a tested Python 3.13 path, but it still needs a packaging
+workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
+while the published `tensorpotential` metadata still requires `tensorflow<2.20`.
+The setup script therefore installs GRACE's base dependencies from
+`envs/grace/requirements.txt` and then installs `grace-tensorpotential` from a
+pinned GitHub commit with `--no-deps`. Override that source with
+`GRACE_GIT_REF=<tag-or-commit>` if needed.

@@ -103,7 +103,8 @@ mlip_name = "uma-s-1p1"
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
 
-# Add "alphanet" to mlip.models.enabled only when adapter_backend = "legacy".
+# Add "alphanet" or "grace" to mlip.models.enabled only when
+# adapter_backend = "legacy".
 [mlip.rootstock.models.alphanet]
 model = "alphanet"
 mlip_name = "alphanet-oma-v1"
@@ -112,3 +113,9 @@ checkpoint = "models/alphanet/model.ckpt"
 
 [mlip.rootstock.models.alphanet.metadata]
 config = "models/alphanet/oma.json"
+
+[mlip.rootstock.models.grace]
+model = "grace"
+mlip_name = "grace"
+# Legacy GRACE uses an exported TensorFlow SavedModel directory.
+checkpoint = "models/grace/saved_model"
