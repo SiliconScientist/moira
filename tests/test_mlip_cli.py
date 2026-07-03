@@ -414,6 +414,74 @@ class MlipTaskTests(unittest.TestCase):
                 },
             )
 
+    def test_make_task_lines_regenerates_dev_dataset_when_dev_n_changes(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            dataset_path = tmp / "example_adsorption.json"
+            dataset_path.write_text(
+                json.dumps(
+                    {
+                        "first": {"value": 1},
+                        "second": {"value": 2},
+                        "third": {"value": 3},
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            config_path = tmp / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 2",
+                        "dev_run = true",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            make_task_lines(
+                config_path=config_path,
+                run_tag="dev",
+                datasets=[str(dataset_path)],
+            )
+
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'device = "cpu"',
+                        "dev_n = 1",
+                        "dev_run = true",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            make_task_lines(
+                config_path=config_path,
+                run_tag="dev",
+                datasets=[str(dataset_path)],
+            )
+
+            dev_dataset_path = tmp / "example_dev_adsorption.json"
+            self.assertEqual(
+                json.loads(dev_dataset_path.read_text(encoding="utf-8")),
+                {
+                    "first": {"value": 1},
+                },
+            )
+
     def test_make_task_lines_emit_one_record_per_shard(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp = Path(tmp_dir)

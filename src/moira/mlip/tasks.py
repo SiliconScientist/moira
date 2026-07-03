@@ -71,9 +71,6 @@ def maybe_make_dev_dataset(dpath: Path, cfg: dict) -> Path:
         out = dpath.with_name(f"{base}_dev_adsorption{dpath.suffix}")
     else:
         out = dpath.with_name(f"{dpath.stem}_dev{dpath.suffix}")
-    # Reuse existing dev dataset if present (keeps sbatch deterministic)
-    if out.exists():
-        return out
     with dpath.open("r", encoding="utf-8") as f:
         obj = json.load(f)
     sliced = slice_json_obj(obj, start=0, stop=dev_n)
