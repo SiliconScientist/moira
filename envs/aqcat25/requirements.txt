@@ -1,5 +1,7 @@
 # Python 3.13-compatible AQCat25 base stack.
 # The patched fairchem-core install is handled separately in setup_mlip_envs.sh.
+# Keep these on the exact cu126 / pt212 build line so PyTorch Geometric's
+# compiled extensions do not drift onto a different CUDA runtime.
 --index-url https://download.pytorch.org/whl/cu126
 --extra-index-url https://pypi.org/simple
 --find-links https://data.pyg.org/whl/torch-2.12.0+cu126.html
@@ -16,10 +18,10 @@ pyyaml==6.0.3
 requests==2.34.2
 submitit==1.5.4
 tensorboard==2.21.0
-torch==2.12.1
+torch==2.12.0+cu126
 torch_geometric==2.8.0
-torch_scatter==2.1.2
-torch_sparse==0.6.18
+torch_scatter==2.1.2+pt212cu126
+torch_sparse==0.6.18+pt212cu126
 torchtnt==0.2.4
 tqdm==4.68.3
 wandb==0.28.0

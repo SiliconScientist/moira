@@ -47,10 +47,23 @@ if [[ ! -f "$ASE_UTILS_SRC" ]]; then
 fi
 
 FAIRCHEM_CORE_DIR="$("$PYTHON_BIN" -c '
+from importlib.util import find_spec
 from pathlib import Path
-import fairchem.core
+import sys
 
-print(Path(fairchem.core.__file__).resolve().parent)
+spec = find_spec("fairchem")
+if spec is None or spec.origin is None:
+    raise SystemExit("error: fairchem is not installed in the aqcat25 environment.")
+
+fairchem_dir = Path(spec.origin).resolve().parent
+fairchem_core_dir = fairchem_dir / "core"
+
+if not fairchem_core_dir.is_dir():
+    raise SystemExit(
+        f"error: could not find fairchem.core under {fairchem_dir}"
+    )
+
+sys.stdout.write(str(fairchem_core_dir))
 ')"
 
 EQV2_DEST="$FAIRCHEM_CORE_DIR/models/equiformer_v2/equiformer_v2_film.py"

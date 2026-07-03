@@ -55,3 +55,9 @@ gated Hugging Face terms, download the AQCat25 files locally, and run:
 That helper copies the gated `equiformer_v2_film.py` and patched
 `ase_utils.py` files into the installed `fairchem-core` package inside
 `envs/aqcat25/.venv`.
+
+AQCat25 is sensitive to mixed CUDA builds. The requirements file intentionally
+pins the exact `torch==2.12.0+cu126`, `torch_scatter==2.1.2+pt212cu126`, and
+`torch_sparse==0.6.18+pt212cu126` line so the compiled PyG extensions match the
+PyTorch runtime. If you created `envs/aqcat25/.venv` before those pins were in
+place, rebuild just that environment or rerun the full script with `--force`.

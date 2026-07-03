@@ -29,6 +29,55 @@ Run the test suite with:
 PYTHONPATH=src python -m unittest
 ```
 
+## AQCat25 Setup
+
+AQCat25 needs one extra install step beyond creating the model environment.
+
+1. Create the MLIP environments:
+
+```bash
+./envs/setup_mlip_envs.sh
+```
+
+AQCat25's environment is pinned to a specific `torch==2.12.0+cu126` /
+`torch_scatter==2.1.2+pt212cu126` / `torch_sparse==0.6.18+pt212cu126` stack.
+If you already created `envs/aqcat25/.venv` before this change, rebuild it:
+
+```bash
+./envs/setup_mlip_envs.sh --force
+```
+
+2. Request access to the gated Hugging Face repo `SandboxAQ/aqcat25-ev2` and
+download it locally. The adapter needs both the pretrained checkpoint and the
+patched fairchem source files from that repo.
+
+Example:
+
+```bash
+hf download SandboxAQ/aqcat25-ev2 --repo-type model --local-dir ~/Downloads/aqcat25-ev2
+```
+
+3. Patch the installed `fairchem-core` inside `envs/aqcat25/.venv`:
+
+```bash
+./envs/aqcat25/patch_fairchem.sh ~/Downloads/aqcat25-ev2
+```
+
+Before patching, you can verify the torch stack resolves to the expected CUDA
+line:
+
+```bash
+./envs/aqcat25/.venv/bin/python -c "import torch, torch_scatter, torch_sparse; print(torch.__version__); print(torch.version.cuda)"
+```
+
+Expected output includes `2.12.0+cu126` and `12.6`.
+
+4. Point `mlip.rootstock.models.aqcat25.checkpoint` at the downloaded AQCat25
+checkpoint `.pt` file in your `config.toml`.
+
+AQCat25 does not read a `metadata` table in `config.toml`. The downloaded
+`aqcat25-ev2` directory is only needed for the patch step above, not at runtime.
+
 ## Entrypoints
 
 Single entrypoint:
