@@ -640,6 +640,42 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["alphanet"].python, str(legacy_python.resolve()))
 
+    def test_model_specs_include_aqcat25_legacy_adapter(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "aqcat25" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["aqcat25"]',
+                        "",
+                        "[mlip.rootstock.models.aqcat25]",
+                        'model = "aqcat25"',
+                        'mlip_name = "aqcat25-ev2"',
+                        'checkpoint = "model.pt"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(
+            specs["aqcat25"].adapter_module,
+            "moira.adapters.legacy.aqcat25_adapter",
+        )
+        self.assertEqual(specs["aqcat25"].python, str(legacy_python.resolve()))
+
     def test_model_specs_include_grace_legacy_adapter(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -1008,6 +1044,85 @@ class LegacyUmaAdapterTests(unittest.TestCase):
         self.assertEqual(fake_calculator.call_args.kwargs["ckpt_path"], str(checkpoint))
         self.assertEqual(fake_calculator.call_args.kwargs["config"], fake_config)
         self.assertEqual(fake_calculator.call_args.kwargs["device"], "cpu")
+
+    def test_legacy_aqcat25_adapter_uses_patched_calc(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.aqcat25_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_fairchem = ModuleType("fairchem")
+        fake_fairchem_core = ModuleType("fairchem.core")
+        fake_common = ModuleType("fairchem.core.common")
+        fake_relaxation = ModuleType("fairchem.core.common.relaxation")
+        fake_ase_utils = ModuleType("fairchem.core.common.relaxation.ase_utils")
+        fake_patched_calc = Mock(return_value=Mock())
+        fake_ase_utils.patched_calc = fake_patched_calc
+        fake_relaxation.ase_utils = fake_ase_utils
+        fake_common.relaxation = fake_relaxation
+        fake_fairchem_core.common = fake_common
+        fake_fairchem.core = fake_fairchem_core
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "fairchem": fake_fairchem,
+                "fairchem.core": fake_fairchem_core,
+                "fairchem.core.common": fake_common,
+                "fairchem.core.common.relaxation": fake_relaxation,
+                "fairchem.core.common.relaxation.ase_utils": fake_ase_utils,
+            },
+        ):
+            from moira.adapters.legacy import aqcat25_adapter
+
+            with TemporaryDirectory() as tmp_dir:
+                tmp = Path(tmp_dir)
+                checkpoint = tmp / "aqcat25.pt"
+                checkpoint.write_text("", encoding="utf-8")
+
+                with patch.object(
+                    aqcat25_adapter,
+                    "load_config",
+                    return_value={
+                        "mlip": {
+                            "optimizer": "FIRE",
+                            "dev_run": False,
+                            "rootstock": {
+                                "models": {
+                                    "aqcat25": {
+                                        "checkpoint": str(checkpoint),
+                                        "mlip_name": "aqcat25-ev2",
+                                    }
+                                }
+                            },
+                        }
+                    },
+                ), patch.object(
+                    aqcat25_adapter,
+                    "resolve_results_dir",
+                    return_value=tmp / "results",
+                ), patch.object(
+                    aqcat25_adapter, "patch_adsorption_paths"
+                ) as mock_patch_paths, patch.object(
+                    aqcat25_adapter, "enrich_result_file"
+                ):
+                    mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                    mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                    aqcat25_adapter.run(
+                        model="aqcat25",
+                        dataset_name="example",
+                        dataset_path="data/raw_data/example.json",
+                        device="cpu",
+                        config_path=str(tmp / "config.toml"),
+                    )
+
+        self.assertEqual(fake_patched_calc.call_count, 3)
+        fake_patched_calc.assert_called_with(checkpoint_path=str(checkpoint))
 
     def test_legacy_grace_adapter_uses_saved_model_tp_calculator(self) -> None:
         sys.modules.pop("moira.adapters.legacy.grace_adapter", None)

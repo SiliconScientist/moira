@@ -40,3 +40,18 @@ The setup script therefore installs GRACE's base dependencies from
 `envs/grace/requirements.txt` and then installs `grace-tensorpotential` from a
 pinned GitHub commit with `--no-deps`. Override that source with
 `GRACE_GIT_REF=<tag-or-commit>` if needed.
+
+`aqcat25` also needs a packaging workaround. The AQCat25 model card documents a
+Python 3.10 / `torch==2.4.0` path, but the fairchem tag it depends on declares
+`requires-python <3.13`. This repo instead uses a Python 3.13-compatible torch
+stack in `envs/aqcat25/requirements.txt`, then installs the base
+`fairchem-core` tag with `--no-deps`. After that, you still need to accept the
+gated Hugging Face terms, download the AQCat25 files locally, and run:
+
+```bash
+./envs/aqcat25/patch_fairchem.sh /path/to/aqcat25-ev2
+```
+
+That helper copies the gated `equiformer_v2_film.py` and patched
+`ase_utils.py` files into the installed `fairchem-core` package inside
+`envs/aqcat25/.venv`.

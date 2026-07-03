@@ -103,8 +103,14 @@ mlip_name = "uma-s-1p1"
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
 
-# Add "alphanet" or "grace" to mlip.models.enabled only when
+# Add "aqcat25", "alphanet", or "grace" to mlip.models.enabled only when
 # adapter_backend = "legacy".
+[mlip.rootstock.models.aqcat25]
+model = "aqcat25"
+mlip_name = "aqcat25-ev2"
+# Legacy AQCat25 uses a real checkpoint file from the gated Hugging Face repo.
+checkpoint = "models/aqcat25/checkpoints_aqcat_ev2/ev2-in+midFiLM-AQCat25+OC20-20M.pt"
+
 [mlip.rootstock.models.alphanet]
 model = "alphanet"
 mlip_name = "alphanet-oma-v1"

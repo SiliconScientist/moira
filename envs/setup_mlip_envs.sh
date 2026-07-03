@@ -9,6 +9,7 @@ UV_BIN="${UV_BIN:-uv}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/moira-mlip-envs.XXXXXX")"
 FORCE_REBUILD=0
 GRACE_GIT_REF="${GRACE_GIT_REF:-ce505520e28b15daf3984c40bcf0992b148ce58f}"
+AQCAT25_FAIRCHEM_GIT_REF="${AQCAT25_FAIRCHEM_GIT_REF:-fairchem_core-1.10.0}"
 
 usage() {
     cat <<'EOF'
@@ -21,6 +22,10 @@ Environment:
   PYTHON_VERSION          Default Python version for MLIP environments.
   ORB_V3_PYTHON_VERSION   Python version for envs/orb_v3.
   GRACE_GIT_REF           Commit/tag to install for envs/grace.
+  AQCAT25_FAIRCHEM_GIT_REF
+                          Git tag/commit for the base fairchem-core install
+                          used by envs/aqcat25 before applying AQCat25's
+                          gated Hugging Face patch files.
 EOF
 }
 
@@ -88,6 +93,11 @@ install_requirements() {
     if [[ "$(basename "$model_dir")" == "grace" ]]; then
         "$UV_BIN" pip install --python "$venv_python" --no-deps \
             "git+https://github.com/ICAMS/grace-tensorpotential.git@${GRACE_GIT_REF}"
+    fi
+
+    if [[ "$(basename "$model_dir")" == "aqcat25" ]]; then
+        "$UV_BIN" pip install --python "$venv_python" --no-deps \
+            "git+https://github.com/facebookresearch/fairchem.git@${AQCAT25_FAIRCHEM_GIT_REF}#subdirectory=packages/fairchem-core"
     fi
 
     touch "$ready_file"

@@ -21,6 +21,7 @@ class ModelSpec:
 
 
 LEGACY_ADAPTER_MODULES = {
+    "aqcat25": "moira.adapters.legacy.aqcat25_adapter",
     "alphanet": "moira.adapters.legacy.alphanet_adapter",
     "grace": "moira.adapters.legacy.grace_adapter",
     "mace": "moira.adapters.legacy.mace_adapter",
