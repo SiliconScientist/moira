@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PYTHON_VERSION="${PYTHON_VERSION:-3.13}"
 ORB_V3_PYTHON_VERSION="${ORB_V3_PYTHON_VERSION:-3.12}"
 UV_BIN="${UV_BIN:-uv}"
+UV_INDEX_STRATEGY="${UV_INDEX_STRATEGY:-unsafe-best-match}"
 LOG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/moira-mlip-envs.XXXXXX")"
 FORCE_REBUILD=0
 GRACE_GIT_REF="${GRACE_GIT_REF:-ce505520e28b15daf3984c40bcf0992b148ce58f}"
@@ -21,6 +22,9 @@ Options:
 Environment:
   PYTHON_VERSION          Default Python version for MLIP environments.
   ORB_V3_PYTHON_VERSION   Python version for envs/orb_v3.
+  UV_INDEX_STRATEGY       uv package index strategy. Defaults to
+                          unsafe-best-match so vendor indexes like PyTorch
+                          and PyG can resolve alongside PyPI.
   GRACE_GIT_REF           Commit/tag to install for envs/grace.
   AQCAT25_FAIRCHEM_GIT_REF
                           Git tag/commit for the base fairchem-core install
@@ -88,7 +92,10 @@ install_requirements() {
     local venv_python="$model_dir/.venv/bin/python"
     local ready_file="$model_dir/.venv/.moira-ready"
 
-    "$UV_BIN" pip install --python "$venv_python" -r "$req_file"
+    "$UV_BIN" pip install \
+        --index-strategy "$UV_INDEX_STRATEGY" \
+        --python "$venv_python" \
+        -r "$req_file"
 
     if [[ "$(basename "$model_dir")" == "grace" ]]; then
         "$UV_BIN" pip install --python "$venv_python" --no-deps \
