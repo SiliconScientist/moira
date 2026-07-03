@@ -1079,6 +1079,75 @@ class LegacyUmaAdapterTests(unittest.TestCase):
         fake_tp_calculator.assert_called()
         self.assertEqual(fake_tp_calculator.call_args.args[0], str(saved_model_dir))
 
+    def test_legacy_grace_adapter_uses_one_calculator_in_dev_run(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.grace_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_tensorpotential = ModuleType("tensorpotential")
+        fake_tensorpotential_calculator = ModuleType("tensorpotential.calculator")
+        fake_tp_calculator = Mock(return_value=Mock())
+        fake_tensorpotential_calculator.TPCalculator = fake_tp_calculator
+        fake_tensorpotential.calculator = fake_tensorpotential_calculator
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "tensorpotential": fake_tensorpotential,
+                "tensorpotential.calculator": fake_tensorpotential_calculator,
+            },
+        ):
+            from moira.adapters.legacy import grace_adapter
+
+            with TemporaryDirectory() as tmp_dir:
+                tmp = Path(tmp_dir)
+                saved_model_dir = tmp / "saved_model"
+                saved_model_dir.mkdir()
+
+                with patch.object(
+                    grace_adapter,
+                    "load_config",
+                    return_value={
+                        "mlip": {
+                            "optimizer": "FIRE",
+                            "dev_run": True,
+                            "rootstock": {
+                                "models": {
+                                    "grace": {
+                                        "checkpoint": str(saved_model_dir),
+                                        "mlip_name": "grace",
+                                    }
+                                }
+                            },
+                        }
+                    },
+                ), patch.object(
+                    grace_adapter,
+                    "resolve_results_dir",
+                    return_value=tmp / "results",
+                ), patch.object(
+                    grace_adapter, "patch_adsorption_paths"
+                ) as mock_patch_paths, patch.object(
+                    grace_adapter, "enrich_result_file"
+                ):
+                    mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                    mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                    grace_adapter.run(
+                        model="grace",
+                        dataset_name="example",
+                        dataset_path="data/raw_data/example.json",
+                        device="cpu",
+                        config_path=str(tmp / "config.toml"),
+                    )
+
+        self.assertEqual(fake_tp_calculator.call_count, 1)
+
     def test_legacy_uma_rejects_rootstock_alias_checkpoint(self) -> None:
         sys.modules.pop("moira.adapters.legacy.uma_adapter", None)
         fake_catbench = ModuleType("catbench")
@@ -1116,6 +1185,73 @@ class LegacyUmaAdapterTests(unittest.TestCase):
                     "Legacy UMA requires .*existing checkpoint file.*rootstock",
                 ):
                     _resolve_checkpoint_path("uma-s-1p1", str(config_path))
+
+    def test_rootstock_adapter_uses_one_calculator_in_dev_run(self) -> None:
+        sys.modules.pop("moira.adapters.rootstock_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+            },
+        ):
+            from moira.adapters import rootstock_adapter
+
+            rootstock_calculator = Mock()
+            rootstock_context = Mock()
+            rootstock_context.__enter__ = Mock(return_value=Mock())
+            rootstock_context.__exit__ = Mock(return_value=False)
+            rootstock_calculator.return_value = rootstock_context
+
+            with TemporaryDirectory() as tmp_dir, patch.dict(
+                sys.modules,
+                {"rootstock": SimpleNamespace(RootstockCalculator=rootstock_calculator)},
+            ), patch.object(
+                rootstock_adapter,
+                "load_config",
+                return_value={
+                    "mlip": {
+                        "optimizer": "FIRE",
+                        "dev_run": True,
+                        "rootstock": {
+                            "root": "/tmp/rootstock",
+                            "models": {
+                                "uma": {
+                                    "model": "uma-s-1p1",
+                                    "mlip_name": "uma-s-1p1",
+                                    "checkpoint": None,
+                                }
+                            },
+                        },
+                    }
+                },
+            ), patch.object(
+                rootstock_adapter,
+                "resolve_results_dir",
+                return_value=Path(tmp_dir) / "results",
+            ), patch.object(
+                rootstock_adapter, "patch_adsorption_paths"
+            ) as mock_patch_paths, patch.object(
+                rootstock_adapter, "enrich_result_file"
+            ):
+                mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                rootstock_adapter.run(
+                    model="uma",
+                    dataset_name="example",
+                    dataset_path="data/raw_data/example.json",
+                    device="cpu",
+                    config_path="config.toml",
+                )
+
+        self.assertEqual(rootstock_calculator.call_count, 1)
 
     def test_run_one_task_reexecs_into_legacy_model_python(self) -> None:
         with TemporaryDirectory() as tmp_dir:

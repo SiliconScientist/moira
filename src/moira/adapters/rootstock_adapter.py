@@ -61,6 +61,7 @@ def run(
     config = load_config(resolved_config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
     dev_run = bool(config.get("mlip", {}).get("dev_run", False))
+    n_calcs = 1 if dev_run else n_calcs
     results_dir = (
         Path(results_dir_override).resolve()
         if results_dir_override is not None
