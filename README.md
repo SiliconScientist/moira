@@ -76,8 +76,11 @@ Expected output includes `2.12.0+cu126` and `12.6`.
 4. Point `mlip.rootstock.models.aqcat25.checkpoint` at the downloaded AQCat25
 checkpoint `.pt` file in your `config.toml`.
 
-AQCat25 does not read a `metadata` table in `config.toml`. The downloaded
-`aqcat25-ev2` directory is only needed for the patch step above, not at runtime.
+AQCat25 optionally reads `[mlip.rootstock.models.aqcat25.metadata]`. The
+supported override today is `is_spin_off`; set `is_spin_off = false` to force
+spin-polarized mode instead of the default element-based heuristic. The
+downloaded `aqcat25-ev2` directory is only needed for the patch step above, not
+at runtime.
 
 ## Entrypoints
 

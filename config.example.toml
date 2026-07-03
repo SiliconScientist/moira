@@ -111,6 +111,11 @@ mlip_name = "aqcat25-ev2"
 # Legacy AQCat25 uses a real checkpoint file from the gated Hugging Face repo.
 checkpoint = "models/aqcat25/checkpoints_aqcat_ev2/ev2-in+midFiLM-AQCat25+OC20-20M.pt"
 
+[mlip.rootstock.models.aqcat25.metadata]
+# AQCat25's patched fairchem calculator uses `is_spin_off`; set false to force
+# spin-polarized mode instead of the default element-based heuristic.
+is_spin_off = true
+
 [mlip.rootstock.models.alphanet]
 model = "alphanet"
 mlip_name = "alphanet-oma-v1"

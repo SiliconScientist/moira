@@ -1165,6 +1165,7 @@ class LegacyUmaAdapterTests(unittest.TestCase):
                                     "aqcat25": {
                                         "checkpoint": str(checkpoint),
                                         "mlip_name": "aqcat25-ev2",
+                                        "metadata": {"is_spin_off": False},
                                     }
                                 }
                             },
@@ -1190,7 +1191,10 @@ class LegacyUmaAdapterTests(unittest.TestCase):
                     )
 
         self.assertEqual(fake_patched_calc.call_count, 3)
-        fake_patched_calc.assert_called_with(checkpoint_path=str(checkpoint))
+        fake_patched_calc.assert_called_with(
+            checkpoint_path=str(checkpoint),
+            is_spin_off=False,
+        )
 
     def test_legacy_grace_adapter_uses_saved_model_tp_calculator(self) -> None:
         sys.modules.pop("moira.adapters.legacy.grace_adapter", None)

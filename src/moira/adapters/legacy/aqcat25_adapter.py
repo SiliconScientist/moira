@@ -11,6 +11,7 @@ from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "aqcat25-ev2"
+DEFAULT_IS_SPIN_OFF = True
 
 
 def _resolve_required_checkpoint_path(
@@ -40,6 +41,25 @@ def _load_patched_calc():
         ) from exc
 
     return patched_calc
+
+
+def _resolve_is_spin_off(metadata: object) -> bool:
+    if not isinstance(metadata, dict):
+        return DEFAULT_IS_SPIN_OFF
+
+    value = metadata.get("is_spin_off", DEFAULT_IS_SPIN_OFF)
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "1", "yes", "on"}:
+            return True
+        if normalized in {"false", "0", "no", "off"}:
+            return False
+
+    raise ValueError(
+        "mlip.rootstock.models.aqcat25.metadata.is_spin_off must be a boolean"
+    )
 
 
 def run(
@@ -80,9 +100,17 @@ def run(
         field_name=f"mlip.rootstock.models.{model}.checkpoint",
     )
     mlip_name = str(spec.get("mlip_name", DEFAULT_MLIP_NAME))
+    metadata = spec.get("metadata", {})
+    is_spin_off = _resolve_is_spin_off(metadata)
     patched_calc = _load_patched_calc()
 
-    calculators = [patched_calc(checkpoint_path=resolved_checkpoint) for _ in range(n_calcs)]
+    calculators = [
+        patched_calc(
+            checkpoint_path=resolved_checkpoint,
+            is_spin_off=is_spin_off,
+        )
+        for _ in range(n_calcs)
+    ]
 
     with patch_adsorption_paths(
         dataset_path=dataset_path,
