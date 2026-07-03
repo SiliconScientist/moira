@@ -51,17 +51,16 @@ from importlib.util import find_spec
 from pathlib import Path
 import sys
 
-spec = find_spec("fairchem")
-if spec is None or spec.origin is None:
-    raise SystemExit("error: fairchem is not installed in the aqcat25 environment.")
+spec = find_spec("fairchem.core")
+if spec is None:
+    raise SystemExit("error: fairchem.core is not installed in the aqcat25 environment.")
 
-fairchem_dir = Path(spec.origin).resolve().parent
-fairchem_core_dir = fairchem_dir / "core"
-
-if not fairchem_core_dir.is_dir():
-    raise SystemExit(
-        f"error: could not find fairchem.core under {fairchem_dir}"
-    )
+if spec.submodule_search_locations:
+    fairchem_core_dir = Path(next(iter(spec.submodule_search_locations))).resolve()
+elif spec.origin is not None:
+    fairchem_core_dir = Path(spec.origin).resolve().parent
+else:
+    raise SystemExit("error: could not locate the fairchem.core install directory.")
 
 sys.stdout.write(str(fairchem_core_dir))
 ')"
