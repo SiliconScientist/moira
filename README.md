@@ -40,7 +40,8 @@ AQCat25 needs one extra install step beyond creating the model environment.
 ```
 
 AQCat25's environment is pinned to a specific `torch==2.12.0+cu126` /
-`torch_scatter==2.1.2+pt212cu126` / `torch_sparse==0.6.18+pt212cu126` stack.
+`torch_scatter==2.1.2+pt212cu126` / `torch_sparse==0.6.18+pt212cu126` /
+`scipy==1.15.3` stack.
 If you already created `envs/aqcat25/.venv` before this change, rebuild it:
 
 ```bash

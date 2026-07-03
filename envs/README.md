@@ -61,3 +61,7 @@ pins the exact `torch==2.12.0+cu126`, `torch_scatter==2.1.2+pt212cu126`, and
 `torch_sparse==0.6.18+pt212cu126` line so the compiled PyG extensions match the
 PyTorch runtime. If you created `envs/aqcat25/.venv` before those pins were in
 place, rebuild just that environment or rerun the full script with `--force`.
+
+AQCat25's patched fairchem dependency also still imports
+`scipy.special.sph_harm`, so SciPy is pinned to `1.15.3`. Newer SciPy releases
+remove that symbol and will fail at calculator startup.
