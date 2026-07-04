@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from importlib import import_module
 from pathlib import Path
 
 import allegro  # noqa: F401  # Ensure the Allegro NequIP extension is registered.
@@ -13,6 +14,11 @@ from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
 
 DEFAULT_MLIP_NAME = "allegro"
+
+
+def _prepare_aotinductor_loader() -> None:
+    # PyTorch 2.10's PT2 loader accesses this lazily loaded module as an attribute.
+    import_module("torch._inductor.codecache")
 
 
 def _resolve_required_checkpoint_path(
@@ -88,6 +94,7 @@ def run(
         spec.get("metadata", {})
     )
 
+    _prepare_aotinductor_loader()
     calculators = [
         NequIPCalculator.from_compiled_model(
             compile_path=resolved_checkpoint,

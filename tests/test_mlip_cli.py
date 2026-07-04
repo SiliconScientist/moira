@@ -1252,7 +1252,9 @@ class LegacyUmaAdapterTests(unittest.TestCase):
                     allegro_adapter, "patch_adsorption_paths"
                 ) as mock_patch_paths, patch.object(
                     allegro_adapter, "enrich_result_file"
-                ):
+                ), patch.object(
+                    allegro_adapter, "_prepare_aotinductor_loader"
+                ) as mock_prepare_aotinductor_loader:
                     mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
                     mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
                     allegro_adapter.run(
@@ -1264,6 +1266,7 @@ class LegacyUmaAdapterTests(unittest.TestCase):
                     )
 
         self.assertEqual(fake_from_compiled_model.call_count, 3)
+        mock_prepare_aotinductor_loader.assert_called_once_with()
         fake_from_compiled_model.assert_called_with(
             compile_path=str(checkpoint),
             device="cpu",
