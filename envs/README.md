@@ -48,6 +48,18 @@ That avoids silently resolving a CPU-only torch wheel or a CUDA wheel newer
 than the target cluster driver. Rebuild `envs/chgnet/.venv` after pulling this
 change if you created it before the pin was added.
 
+`allegro` now has a verified Python 3.13 path using the current upstream PyPI
+packages `nequip-allegro==0.8.3` and `nequip==0.18.0` with `torch==2.10.0`.
+That keeps the env definition minimal while still pinning the exact
+post-`nequip` v0.7 compatibility line that was tested locally with `uv`.
+
+Allegro's runtime artifact is not a raw training checkpoint. Moira's legacy
+adapter expects a compiled ASE model file produced with upstream's
+`nequip-compile --target ase`, typically a `.nequip.pt2` file. If your model's
+type names already match chemical symbols, you can set
+`chemical_species_to_atom_type_map = true` in the model metadata to suppress
+NequIP's default warning; otherwise provide an explicit mapping table.
+
 `grace` now has a tested Python 3.13 path, but it still needs a packaging
 workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
 while the published `tensorpotential` metadata still requires `tensorflow<2.20`.

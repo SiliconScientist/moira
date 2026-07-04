@@ -120,6 +120,67 @@ selector. Today that means `"0.3.0"` for the default pretrained model or
 ./envs/setup_mlip_envs.sh --force
 ```
 
+## Allegro Setup
+
+Allegro uses NequIP's ASE integration and requires a compiled NequIP model
+artifact at runtime.
+
+1. Create the MLIP environments:
+
+```bash
+./envs/setup_mlip_envs.sh
+```
+
+`envs/allegro/requirements.txt` pins the current official release line that was
+verified in a temporary `uv` Python 3.13 environment:
+
+```text
+ase==3.26.0
+torch==2.10.0
+nequip==0.18.0
+nequip-allegro==0.8.3
+```
+
+This deliberately uses the newer post-`nequip` v0.7 / `allegro` v0.4
+compatibility line instead of mixing old and new releases. The verification
+path was:
+- `uv venv --python 3.13 /tmp/allegro-test/.venv`
+- `uv pip install --python /tmp/allegro-test/.venv/bin/python torch==2.10.0 nequip==0.18.0 nequip-allegro==0.8.3 ase==3.26.0`
+- `/tmp/allegro-test/.venv/bin/python -c "import allegro; from nequip.integrations.ase import NequIPCalculator"`
+
+2. Switch the model to the legacy backend in `config.toml` and enable
+`allegro`.
+
+3. Compile a trained NequIP or packaged model for ASE with upstream's
+`nequip-compile` flow. Moira expects the compiled output file, not the raw
+training checkpoint:
+
+```bash
+nequip-compile path/to/model.ckpt path/to/compiled_model.nequip.pt2 --device cuda --mode aotinductor --target ase
+```
+
+Upstream documents that the compile device should match the device you plan to
+use with the ASE calculator.
+
+4. Point `mlip.rootstock.models.allegro.checkpoint` at that compiled
+`.nequip.pt2` file.
+
+5. If your compiled model's type names exactly match chemical symbols, you can
+silence NequIP's default mapping warning with:
+
+```toml
+[mlip.rootstock.models.allegro.metadata]
+chemical_species_to_atom_type_map = true
+```
+
+If they do not match, provide an explicit mapping table instead, for example:
+
+```toml
+[mlip.rootstock.models.allegro.metadata.chemical_species_to_atom_type_map]
+Si = "Type0"
+O = "Type1"
+```
+
 ## Entrypoints
 
 Single entrypoint:

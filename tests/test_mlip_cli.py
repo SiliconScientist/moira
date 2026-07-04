@@ -708,6 +708,42 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["alphanet"].python, str(legacy_python.resolve()))
 
+    def test_model_specs_include_allegro_legacy_adapter(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "allegro" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["allegro"]',
+                        "",
+                        "[mlip.rootstock.models.allegro]",
+                        'model = "allegro"',
+                        'mlip_name = "allegro"',
+                        'checkpoint = "compiled_model.nequip.pt2"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(
+            specs["allegro"].adapter_module,
+            "moira.adapters.legacy.allegro_adapter",
+        )
+        self.assertEqual(specs["allegro"].python, str(legacy_python.resolve()))
+
     def test_model_specs_include_chgnet_legacy_adapter(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -1148,6 +1184,91 @@ class LegacyUmaAdapterTests(unittest.TestCase):
         self.assertEqual(fake_calculator.call_args.kwargs["ckpt_path"], str(checkpoint))
         self.assertEqual(fake_calculator.call_args.kwargs["config"], fake_config)
         self.assertEqual(fake_calculator.call_args.kwargs["device"], "cpu")
+
+    def test_legacy_allegro_adapter_uses_compiled_nequip_model(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.allegro_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_allegro = ModuleType("allegro")
+        fake_nequip = ModuleType("nequip")
+        fake_nequip_integrations = ModuleType("nequip.integrations")
+        fake_nequip_ase = ModuleType("nequip.integrations.ase")
+        fake_from_compiled_model = Mock(return_value=Mock())
+        fake_nequip_ase.NequIPCalculator = SimpleNamespace(
+            from_compiled_model=fake_from_compiled_model
+        )
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "allegro": fake_allegro,
+                "nequip": fake_nequip,
+                "nequip.integrations": fake_nequip_integrations,
+                "nequip.integrations.ase": fake_nequip_ase,
+            },
+        ):
+            from moira.adapters.legacy import allegro_adapter
+
+            with TemporaryDirectory() as tmp_dir:
+                tmp = Path(tmp_dir)
+                checkpoint = tmp / "compiled_model.nequip.pt2"
+                checkpoint.write_text("", encoding="utf-8")
+
+                with patch.object(
+                    allegro_adapter,
+                    "load_config",
+                    return_value={
+                        "mlip": {
+                            "optimizer": "FIRE",
+                            "dev_run": False,
+                            "rootstock": {
+                                "models": {
+                                    "allegro": {
+                                        "checkpoint": str(checkpoint),
+                                        "mlip_name": "allegro-si-o",
+                                        "metadata": {
+                                            "chemical_species_to_atom_type_map": {
+                                                "Si": "Type0",
+                                                "O": "Type1",
+                                            }
+                                        },
+                                    }
+                                }
+                            },
+                        }
+                    },
+                ), patch.object(
+                    allegro_adapter,
+                    "resolve_results_dir",
+                    return_value=tmp / "results",
+                ), patch.object(
+                    allegro_adapter, "patch_adsorption_paths"
+                ) as mock_patch_paths, patch.object(
+                    allegro_adapter, "enrich_result_file"
+                ):
+                    mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                    mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                    allegro_adapter.run(
+                        model="allegro",
+                        dataset_name="example",
+                        dataset_path="data/raw_data/example.json",
+                        device="cpu",
+                        config_path=str(tmp / "config.toml"),
+                    )
+
+        self.assertEqual(fake_from_compiled_model.call_count, 3)
+        fake_from_compiled_model.assert_called_with(
+            compile_path=str(checkpoint),
+            device="cpu",
+            chemical_species_to_atom_type_map={"Si": "Type0", "O": "Type1"},
+        )
 
     def test_legacy_aqcat25_adapter_uses_patched_calc(self) -> None:
         sys.modules.pop("moira.adapters.legacy.aqcat25_adapter", None)

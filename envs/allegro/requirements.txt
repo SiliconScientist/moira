@@ -1,0 +1,7 @@
+# Verified Python 3.13 Allegro/NequIP environment.
+# Pin the exact NequIP/Allegro pair so we don't rely on transitive resolution
+# across the upstream post-v0.7 compatibility boundary.
+ase==3.26.0
+torch==2.10.0
+nequip==0.18.0
+nequip-allegro==0.8.3

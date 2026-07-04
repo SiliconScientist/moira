@@ -21,6 +21,7 @@ class ModelSpec:
 
 
 LEGACY_ADAPTER_MODULES = {
+    "allegro": "moira.adapters.legacy.allegro_adapter",
     "chgnet": "moira.adapters.legacy.chgnet_adapter",
     "aqcat25": "moira.adapters.legacy.aqcat25_adapter",
     "alphanet": "moira.adapters.legacy.alphanet_adapter",

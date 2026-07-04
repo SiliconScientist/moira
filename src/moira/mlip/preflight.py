@@ -7,6 +7,7 @@ from moira.mlip.registry import get_model_specs
 
 
 LEGACY_MODEL_IMPORTS = {
+    "allegro": "allegro",
     "chgnet": "chgnet",
     "aqcat25": "fairchem",
     "alphanet": "alphanet",
