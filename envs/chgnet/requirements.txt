@@ -1,0 +1,2 @@
+# Minimal Python 3.13-compatible CHGNet environment.
+chgnet==0.4.2

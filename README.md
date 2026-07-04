@@ -82,6 +82,32 @@ spin-polarized mode instead of the default element-based heuristic. The
 downloaded `aqcat25-ev2` directory is only needed for the patch step above, not
 at runtime.
 
+## CHGNet Setup
+
+CHGNet is the simplest legacy environment in this repo.
+
+1. Create the MLIP environments:
+
+```bash
+./envs/setup_mlip_envs.sh
+```
+
+`envs/chgnet/requirements.txt` is intentionally just:
+
+```text
+chgnet==0.4.2
+```
+
+That exact path was verified in a temporary `uv` Python 3.13 environment with:
+- `uv pip install chgnet`
+- `from chgnet.model.model import CHGNet; CHGNet.load()`
+
+2. Switch the model to the legacy backend in `config.toml` and enable `chgnet`.
+
+3. Set `mlip.rootstock.models.chgnet.checkpoint` to CHGNet's upstream model
+selector. Today that means `"0.3.0"` for the default pretrained model or
+`"r2scan"` for the R2SCAN transfer-learned model.
+
 ## Entrypoints
 
 Single entrypoint:

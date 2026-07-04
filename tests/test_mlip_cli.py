@@ -708,6 +708,42 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["alphanet"].python, str(legacy_python.resolve()))
 
+    def test_model_specs_include_chgnet_legacy_adapter(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "chgnet" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["chgnet"]',
+                        "",
+                        "[mlip.rootstock.models.chgnet]",
+                        'model = "chgnet"',
+                        'mlip_name = "chgnet-0.3.0"',
+                        'checkpoint = "0.3.0"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(
+            specs["chgnet"].adapter_module,
+            "moira.adapters.legacy.chgnet_adapter",
+        )
+        self.assertEqual(specs["chgnet"].python, str(legacy_python.resolve()))
+
     def test_model_specs_include_aqcat25_legacy_adapter(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -1195,6 +1231,74 @@ class LegacyUmaAdapterTests(unittest.TestCase):
             checkpoint_path=str(checkpoint),
             is_spin_off=False,
         )
+
+    def test_legacy_chgnet_adapter_uses_pretrained_model_selector(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.chgnet_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_chgnet = ModuleType("chgnet")
+        fake_chgnet_model = ModuleType("chgnet.model")
+        fake_chgnet_model_model = ModuleType("chgnet.model.model")
+        fake_pretrained_model = Mock()
+        fake_load = Mock(return_value=fake_pretrained_model)
+        fake_chgnet_model_model.CHGNet = SimpleNamespace(load=fake_load)
+        fake_calculator = Mock(return_value=Mock())
+        fake_chgnet_model.CHGNetCalculator = fake_calculator
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "chgnet": fake_chgnet,
+                "chgnet.model": fake_chgnet_model,
+                "chgnet.model.model": fake_chgnet_model_model,
+            },
+        ):
+            from moira.adapters.legacy import chgnet_adapter
+
+            with TemporaryDirectory() as tmp_dir, patch.object(
+                chgnet_adapter,
+                "load_config",
+                return_value={
+                    "mlip": {
+                        "optimizer": "FIRE",
+                        "dev_run": False,
+                        "rootstock": {
+                            "models": {
+                                "chgnet": {
+                                    "checkpoint": "r2scan",
+                                    "mlip_name": "chgnet-r2scan",
+                                }
+                            }
+                        },
+                    }
+                },
+            ), patch.object(
+                chgnet_adapter, "resolve_results_dir", return_value=Path(tmp_dir) / "results"
+            ), patch.object(
+                chgnet_adapter, "patch_adsorption_paths"
+            ) as mock_patch_paths, patch.object(
+                chgnet_adapter, "enrich_result_file"
+            ):
+                mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                chgnet_adapter.run(
+                    model="chgnet",
+                    dataset_name="example",
+                    dataset_path="data/raw_data/example.json",
+                    device="cpu",
+                    config_path="config.toml",
+                )
+
+        fake_load.assert_called_once_with(model_name="r2scan", use_device="cpu")
+        self.assertEqual(fake_calculator.call_count, 3)
+        fake_calculator.assert_called_with(model=fake_pretrained_model, use_device="cpu")
 
     def test_legacy_grace_adapter_uses_saved_model_tp_calculator(self) -> None:
         sys.modules.pop("moira.adapters.legacy.grace_adapter", None)

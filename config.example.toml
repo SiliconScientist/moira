@@ -103,8 +103,15 @@ mlip_name = "uma-s-1p1"
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
 
-# Add "aqcat25", "alphanet", or "grace" to mlip.models.enabled only when
-# adapter_backend = "legacy".
+# Add "aqcat25", "alphanet", "chgnet", or "grace" to mlip.models.enabled only
+# when adapter_backend = "legacy".
+[mlip.rootstock.models.chgnet]
+model = "chgnet"
+mlip_name = "chgnet-0.3.0"
+# Legacy CHGNet uses the upstream pretrained model selector, not a local file.
+# Known values include "0.3.0" (default) and "r2scan".
+checkpoint = "0.3.0"
+
 [mlip.rootstock.models.aqcat25]
 model = "aqcat25"
 mlip_name = "aqcat25-ev2"

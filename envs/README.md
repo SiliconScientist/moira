@@ -33,6 +33,11 @@ its requirements file follows the simpler torch path instead of the optional
 JAX/Haiku path, but uses a newer PyTorch Geometric wheel set than AlphaNet
 upstream documents so it can stay on the project-wide Python 3.13 default.
 
+`chgnet` is the simplest case: `envs/chgnet/requirements.txt` is just
+`chgnet==0.4.2`. A fresh `uv` Python 3.13 probe confirmed that the package
+installs cleanly, imports, and loads the default pretrained `CHGNet` model
+without extra pins or custom indexes.
+
 `grace` now has a tested Python 3.13 path, but it still needs a packaging
 workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
 while the published `tensorpotential` metadata still requires `tensorflow<2.20`.
