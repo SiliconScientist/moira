@@ -1,2 +1,7 @@
-# Minimal Python 3.13-compatible CHGNet environment.
+# Python 3.13-compatible CHGNet GPU environment for CUDA 12.8-era drivers.
+# Keep torch pinned to the cu128 wheel line so CHGNet does not silently resolve
+# a CPU-only torch wheel from PyPI.
+--index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://pypi.org/simple
 chgnet==0.4.2
+torch==2.10.0+cu128

@@ -92,21 +92,33 @@ CHGNet is the simplest legacy environment in this repo.
 ./envs/setup_mlip_envs.sh
 ```
 
-`envs/chgnet/requirements.txt` is intentionally just:
+`envs/chgnet/requirements.txt` pins both `chgnet` and a CUDA-specific torch
+wheel:
 
 ```text
+--index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://pypi.org/simple
 chgnet==0.4.2
+torch==2.10.0+cu128
 ```
 
-That exact path was verified in a temporary `uv` Python 3.13 environment with:
-- `uv pip install chgnet`
-- `from chgnet.model.model import CHGNet; CHGNet.load()`
+The original one-line `chgnet==0.4.2` env was enough for CPU-only execution,
+but it let `uv` resolve an arbitrary torch wheel transitively. On clusters, that
+can silently land on a CPU wheel or on a CUDA wheel newer than the installed
+NVIDIA driver. This repo now pins CHGNet to PyTorch's official `cu128` line so
+GPU execution is reproducible on CUDA 12.8-era drivers.
 
 2. Switch the model to the legacy backend in `config.toml` and enable `chgnet`.
 
 3. Set `mlip.rootstock.models.chgnet.checkpoint` to CHGNet's upstream model
 selector. Today that means `"0.3.0"` for the default pretrained model or
 `"r2scan"` for the R2SCAN transfer-learned model.
+
+4. If you already created `envs/chgnet/.venv` before this change, rebuild it:
+
+```bash
+./envs/setup_mlip_envs.sh --force
+```
 
 ## Entrypoints
 

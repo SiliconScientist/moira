@@ -33,10 +33,20 @@ its requirements file follows the simpler torch path instead of the optional
 JAX/Haiku path, but uses a newer PyTorch Geometric wheel set than AlphaNet
 upstream documents so it can stay on the project-wide Python 3.13 default.
 
-`chgnet` is the simplest case: `envs/chgnet/requirements.txt` is just
-`chgnet==0.4.2`. A fresh `uv` Python 3.13 probe confirmed that the package
-installs cleanly, imports, and loads the default pretrained `CHGNet` model
-without extra pins or custom indexes.
+`chgnet` is no longer a pure one-line dependency file. In practice, GPU
+execution depends on which torch wheel gets resolved, so this repo now pins
+CHGNet to PyTorch's official `cu128` wheel line:
+
+```text
+--index-url https://download.pytorch.org/whl/cu128
+--extra-index-url https://pypi.org/simple
+chgnet==0.4.2
+torch==2.10.0+cu128
+```
+
+That avoids silently resolving a CPU-only torch wheel or a CUDA wheel newer
+than the target cluster driver. Rebuild `envs/chgnet/.venv` after pulling this
+change if you created it before the pin was added.
 
 `grace` now has a tested Python 3.13 path, but it still needs a packaging
 workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
