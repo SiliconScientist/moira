@@ -151,29 +151,78 @@ path was:
 2. Switch the model to the legacy backend in `config.toml` and enable
 `allegro`.
 
-3. Compile a trained NequIP or packaged model for ASE with upstream's
-`nequip-compile` flow. Moira expects the compiled output file, not the raw
-training checkpoint:
+3. Obtain the portable packaged model. For Allegro-OAM-L 0.1, either download
+it directly on the HPC:
 
 ```bash
-nequip-compile path/to/model.ckpt path/to/compiled_model.nequip.pt2 --device cuda --mode aotinductor --target ase
+mkdir -p models/allegro
+curl -L \
+  https://zenodo.org/api/records/16980200/files/Allegro-OAM-L-0.1.nequip.zip/content \
+  -o models/allegro/Allegro-OAM-L-0.1.nequip.zip
 ```
 
-Upstream documents that the compile device should match the device you plan to
-use with the ASE calculator.
+or download it elsewhere and upload it:
 
-4. Point `mlip.rootstock.models.allegro.checkpoint` at that compiled
-`.nequip.pt2` file.
+```bash
+scp Allegro-OAM-L-0.1.nequip.zip \
+  USER@HPC:/path/to/moira/models/allegro/
+```
 
-5. If your compiled model's type names exactly match chemical symbols, you can
-silence NequIP's default mapping warning with:
+The `.nequip.zip` file is the portable upstream model package. It is not the
+file Moira loads at runtime.
+
+4. Compile the package on an HPC compute node with a visible GPU of the same
+type that will run inference. Do not compile on a login node. Some HPC compiler
+modules set `CXX=CC`; PyTorch AOTInductor requires a normal C++17 compiler, so
+override it explicitly:
+
+```bash
+source envs/allegro/.venv/bin/activate
+export CC=gcc
+export CXX=g++
+
+python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
+gcc --version
+
+nequip-compile \
+  models/allegro/Allegro-OAM-L-0.1.nequip.zip \
+  models/allegro/Allegro-OAM-L-0.1.nequip.pt2 \
+  --mode aotinductor \
+  --device cuda \
+  --target ase
+```
+
+The CUDA check must report `True`, and GCC 11 or newer is recommended. The
+resulting `.nequip.pt2` file is specialized for the compilation environment.
+Repeat this step when moving to a materially different GPU or software stack.
+
+Do not add `enable_TritonContracter` for this model: its packaged Allegro 0.7.1
+code fails while constructing that modifier. The package's matching
+cuEquivariance 0.5.1 CUDA kernels also have no Python 3.13 wheel. The unmodified
+model still runs on CUDA; those modifiers are optional kernel accelerators.
+
+5. Configure the legacy adapter to load the compiled artifact:
 
 ```toml
+[mlip]
+adapter_backend = "legacy"
+device = "cuda"
+
+[mlip.models]
+enabled = ["allegro"]
+
+[mlip.rootstock.models.allegro]
+model = "allegro"
+mlip_name = "allegro-oam-l-0.1"
+checkpoint = "models/allegro/Allegro-OAM-L-0.1.nequip.pt2"
+
 [mlip.rootstock.models.allegro.metadata]
 chemical_species_to_atom_type_map = true
 ```
 
-If they do not match, provide an explicit mapping table instead, for example:
+The identity mapping is correct for Allegro-OAM-L because its packaged atom
+type names are chemical symbols. For another model whose names do not match,
+provide an explicit mapping table instead, for example:
 
 ```toml
 [mlip.rootstock.models.allegro.metadata.chemical_species_to_atom_type_map]

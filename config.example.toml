@@ -103,8 +103,18 @@ mlip_name = "uma-s-1p1"
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
 
-# Add "aqcat25", "alphanet", "chgnet", or "grace" to mlip.models.enabled only
-# when adapter_backend = "legacy".
+# Add "allegro", "aqcat25", "alphanet", "chgnet", or "grace" to
+# mlip.models.enabled only when adapter_backend = "legacy".
+[mlip.rootstock.models.allegro]
+model = "allegro"
+mlip_name = "allegro-oam-l-0.1"
+# Compile the portable .nequip.zip package on the target GPU before use.
+checkpoint = "models/allegro/Allegro-OAM-L-0.1.nequip.pt2"
+
+[mlip.rootstock.models.allegro.metadata]
+# Allegro-OAM-L atom type names are chemical symbols, so identity mapping is valid.
+chemical_species_to_atom_type_map = true
+
 [mlip.rootstock.models.chgnet]
 model = "chgnet"
 mlip_name = "chgnet-r2scan"

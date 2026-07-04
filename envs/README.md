@@ -58,7 +58,9 @@ adapter expects a compiled ASE model file produced with upstream's
 `nequip-compile --target ase`, typically a `.nequip.pt2` file. If your model's
 type names already match chemical symbols, you can set
 `chemical_species_to_atom_type_map = true` in the model metadata to suppress
-NequIP's default warning; otherwise provide an explicit mapping table.
+NequIP's default warning; otherwise provide an explicit mapping table. See the
+repo README's Allegro Setup section for the tested Allegro-OAM-L download,
+HPC upload, GPU compilation, and configuration process.
 
 `grace` now has a tested Python 3.13 path, but it still needs a packaging
 workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
