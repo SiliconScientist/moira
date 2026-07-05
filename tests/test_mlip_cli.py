@@ -1884,7 +1884,10 @@ class MlipPreflightTests(unittest.TestCase):
                 mock_validate.assert_called_once_with(config_path.resolve())
                 frozen_config_path = Path(mock_make_tasks.call_args.kwargs["config_path"])
                 self.assertNotEqual(frozen_config_path, config_path.resolve())
-                self.assertEqual(frozen_config_path.parent, config_path.resolve().parent)
+                self.assertEqual(
+                    frozen_config_path.parent,
+                    (tmp / "slurm_output" / "config_snapshots").resolve(),
+                )
                 self.assertEqual(
                     frozen_config_path.read_text(encoding="utf-8"),
                     config_contents,

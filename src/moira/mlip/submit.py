@@ -16,9 +16,11 @@ def config_snapshot_dir(config_path: str | Path) -> Path:
 
 def freeze_config_snapshot(config_path: str | Path, *, run_tag: str) -> Path:
     source_path = Path(config_path).resolve()
+    snapshot_dir = config_snapshot_dir(source_path)
+    snapshot_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
     snapshot_name = f"{source_path.stem}.{run_tag}.{timestamp}{source_path.suffix}"
-    snapshot_path = source_path.with_name(snapshot_name)
+    snapshot_path = snapshot_dir / snapshot_name
     shutil.copy2(source_path, snapshot_path)
     return snapshot_path
 
