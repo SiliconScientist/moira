@@ -11,6 +11,7 @@ from catbench.adsorption import AdsorptionCalculation
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
+from moira.pathing import resolve_project_path
 
 
 def _resolve_checkpoint(checkpoint: str | None, config_path: Path) -> str | None:
@@ -22,7 +23,7 @@ def _resolve_checkpoint(checkpoint: str | None, config_path: Path) -> str | None
         not checkpoint_path.is_absolute()
         and any(sep in checkpoint for sep in ("/", "\\"))
     ):
-        return str((config_path.parent / checkpoint_path).resolve())
+        return str(resolve_project_path(checkpoint_path, config_path=config_path))
     return checkpoint
 
 

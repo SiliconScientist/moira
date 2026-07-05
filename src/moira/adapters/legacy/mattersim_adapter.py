@@ -10,6 +10,7 @@ from mattersim.forcefield.potential import MatterSimCalculator, Potential
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
+from moira.pathing import resolve_project_path
 
 DEFAULT_MLIP_NAME = "mattersim-v1-5m"
 
@@ -48,7 +49,9 @@ def run(
             not checkpoint_path.is_absolute()
             and any(sep in resolved_model_path for sep in ("/", "\\"))
         ):
-            resolved_model_path = str((Path(config_path).parent / checkpoint_path).resolve())
+            resolved_model_path = str(
+                resolve_project_path(checkpoint_path, config_path=config_path)
+            )
     calculators = []
     for _ in range(n_calcs):
         potential = Potential.from_checkpoint(

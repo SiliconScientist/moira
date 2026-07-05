@@ -11,6 +11,7 @@ from fairchem.core.units.mlip_unit import load_predict_unit
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
+from moira.pathing import resolve_project_path
 
 DEFAULT_MLIP_NAME = "uma-s-1p1"
 DEFAULT_TASK_NAME = "oc20"
@@ -22,7 +23,10 @@ def _resolve_checkpoint_path(checkpoint: str, config_path: str) -> str:
         not checkpoint_path.is_absolute()
         and any(sep in checkpoint for sep in ("/", "\\"))
     ):
-        checkpoint_path = (Path(config_path).parent / checkpoint_path).resolve()
+        checkpoint_path = resolve_project_path(
+            checkpoint_path,
+            config_path=config_path,
+        )
 
     if checkpoint_path.exists():
         return str(checkpoint_path)

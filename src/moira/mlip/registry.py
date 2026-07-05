@@ -11,6 +11,8 @@ try:
 except ModuleNotFoundError:  # Python < 3.11
     import tomli as tomllib
 
+from moira.pathing import get_project_root, resolve_project_path
+
 
 @dataclass(frozen=True)
 class ModelSpec:
@@ -73,8 +75,9 @@ def get_rootstock_python(config_path: str | Path) -> str | None:
 
 
 def get_legacy_model_python(model: str, config_path: str | Path) -> str | None:
-    config_path = Path(config_path).resolve()
-    env_python = config_path.parent / "envs" / model / ".venv" / "bin" / "python"
+    env_python = (
+        get_project_root(config_path) / "envs" / model / ".venv" / "bin" / "python"
+    )
     if env_python.exists():
         return str(env_python)
     return None
@@ -136,10 +139,8 @@ def get_catbench_source_path(config_path: str | Path) -> Path | None:
     cfg = load_config(config_path)
     raw_path = cfg.get("mlip", {}).get("catbench_source")
     if raw_path is None:
-        default_path = config_path.parent / "vendor" / "catbench"
+        default_path = get_project_root(config_path) / "vendor" / "catbench"
         return default_path if default_path.exists() else None
 
-    catbench_path = Path(raw_path)
-    if not catbench_path.is_absolute():
-        catbench_path = (config_path.parent / catbench_path).resolve()
+    catbench_path = resolve_project_path(raw_path, config_path=config_path)
     return catbench_path

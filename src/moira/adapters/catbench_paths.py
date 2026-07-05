@@ -4,6 +4,8 @@ from contextlib import ExitStack, contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
+from moira.pathing import resolve_project_path
+
 
 def resolve_results_dir(
     results_dir: str | None,
@@ -17,7 +19,7 @@ def resolve_results_dir(
     resolved_config_path = Path(config_path).resolve()
     path = Path(results_dir)
     if not path.is_absolute():
-        path = (resolved_config_path.parent / path).resolve()
+        path = resolve_project_path(path, config_path=resolved_config_path)
     if dev_run and not path.name.endswith("_dev"):
         path = path.with_name(f"{path.name}_dev")
     return path

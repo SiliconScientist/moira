@@ -12,6 +12,7 @@ from nequip.integrations.ase import NequIPCalculator
 from moira.adapters.catbench_paths import patch_adsorption_paths, resolve_results_dir
 from moira.mlip.result_metadata import enrich_result_file
 from moira.mlip.registry import load_config
+from moira.pathing import resolve_project_path
 
 DEFAULT_MLIP_NAME = "allegro"
 
@@ -29,7 +30,7 @@ def _resolve_required_checkpoint_path(
 ) -> str:
     path = Path(path_value)
     if not path.is_absolute():
-        path = (Path(config_path).parent / path).resolve()
+        path = resolve_project_path(path, config_path=config_path)
 
     if not path.exists():
         raise FileNotFoundError(f"{field_name} does not exist: {path}")

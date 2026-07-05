@@ -21,7 +21,8 @@ from moira.config import get_config
 from moira.mlip.artifacts import load_result_json, merge_result_jsons
 from moira.mlip.cli import main as mlip_main
 from moira.mlip.preflight import validate_model_envs
-from moira.mlip.registry import get_model_specs
+from moira.mlip.registry import get_catbench_source_path, get_model_specs
+from moira.pathing import get_project_root
 from moira.mlip.runner import run_one_task
 from moira.mlip.shards import infer_shard_count, shard_bounds, shard_json_obj
 from moira.mlip.tasks import make_task_lines, shard_dataset_name
@@ -2438,6 +2439,50 @@ class CatbenchPathPatchTests(unittest.TestCase):
             resolved,
             (config_path.parent / "data/results/MamunHighT2019_dev").resolve(),
         )
+
+    def test_get_project_root_prefers_repo_root_markers(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("", encoding="utf-8")
+
+            resolved = get_project_root(config_path)
+
+        self.assertEqual(resolved, root.resolve())
+
+    def test_resolve_results_dir_uses_project_root_when_available(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("", encoding="utf-8")
+
+            resolved = resolve_results_dir(
+                "data/results/MamunHighT2019",
+                config_path=config_path,
+            )
+
+        self.assertEqual(resolved, (root / "data/results/MamunHighT2019").resolve())
+
+    def test_get_catbench_source_path_uses_project_root_default(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            vendor_path = root / "vendor" / "catbench" / "catbench"
+            vendor_path.mkdir(parents=True)
+            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("[mlip]\n", encoding="utf-8")
+
+            resolved = get_catbench_source_path(config_path)
+
+        self.assertEqual(resolved, (root / "vendor" / "catbench").resolve())
 
     def test_patch_adsorption_paths_overrides_dataset_and_result_helpers(self) -> None:
         catbench = ModuleType("catbench")
