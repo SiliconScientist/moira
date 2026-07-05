@@ -264,6 +264,7 @@ Sharding helpers:
 
 ```bash
 python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
+python slurm/mlip_submit.sh config.toml screen
 python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 ```
 
@@ -300,10 +301,16 @@ Use one sharding mode at a time:
 Typical Slurm flow:
 
 ```bash
-python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
-sbatch --array=0-$(($(wc -l < slurm_output/mlip_tasks_screen.jsonl)-1)) slurm/mlip_one.sbatch slurm_output/mlip_tasks_screen.jsonl config.toml
+python -m moira.mlip --config config.toml --run-tag screen
+# or:
+python slurm/mlip_submit.sh config.toml screen
 python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 ```
+
+The submit path snapshots `config.toml` into `slurm_output/config_snapshots/` and
+passes that frozen file to `sbatch`, so later edits to your working config do not
+change queued jobs. If you assemble `sbatch` commands manually, pass the frozen
+snapshot path rather than the mutable top-level `config.toml`.
 
 Each shard writes to a shard-specific result directory under `mlip.results_dir`.
 This keeps CatBench restart logic local to that shard and prevents concurrent jobs
