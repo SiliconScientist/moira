@@ -1902,6 +1902,24 @@ class MlipPreflightTests(unittest.TestCase):
             finally:
                 os.chdir(original_cwd)
 
+    def test_config_snapshot_dir_uses_ignored_slurm_output_subdir(self) -> None:
+        from moira.mlip.submit import config_snapshot_dir
+
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            config_path = root / "configs" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text("", encoding="utf-8")
+
+            snapshot_dir = config_snapshot_dir(config_path)
+
+        self.assertEqual(
+            snapshot_dir,
+            (root / "slurm_output" / "config_snapshots").resolve(),
+        )
+
 
 class MlipRunnerTests(unittest.TestCase):
     def test_run_one_task_dispatches_adapter_in_process(self) -> None:

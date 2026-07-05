@@ -7,6 +7,11 @@ from pathlib import Path
 
 from moira.mlip.preflight import validate_model_envs
 from moira.mlip.tasks import make_tasks
+from moira.pathing import get_project_root
+
+
+def config_snapshot_dir(config_path: str | Path) -> Path:
+    return get_project_root(config_path) / "slurm_output" / "config_snapshots"
 
 
 def freeze_config_snapshot(config_path: str | Path, *, run_tag: str) -> Path:
