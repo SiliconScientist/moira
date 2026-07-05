@@ -670,6 +670,38 @@ class MlipRegistryTests(unittest.TestCase):
         )
         self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
 
+    def test_model_specs_find_legacy_envs_from_project_root_for_snapshot_configs(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            legacy_python = root / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            specs = get_model_specs(config_path)
+
+        self.assertEqual(specs["mace"].python, str(legacy_python.resolve()))
+
     def test_model_specs_include_alphanet_legacy_adapter(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)
@@ -2504,6 +2536,24 @@ class CatbenchPathPatchTests(unittest.TestCase):
             resolved = get_catbench_source_path(config_path)
 
         self.assertEqual(resolved, (root / "vendor" / "catbench").resolve())
+
+    def test_get_catbench_source_path_resolves_relative_config_value_from_project_root(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / "pyproject.toml").write_text("", encoding="utf-8")
+            (root / "src" / "moira").mkdir(parents=True)
+            custom_path = root / "external" / "catbench" / "catbench"
+            custom_path.mkdir(parents=True)
+            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path.parent.mkdir(parents=True)
+            config_path.write_text(
+                '[mlip]\ncatbench_source = "external/catbench"\n',
+                encoding="utf-8",
+            )
+
+            resolved = get_catbench_source_path(config_path)
+
+        self.assertEqual(resolved, (root / "external" / "catbench").resolve())
 
     def test_patch_adsorption_paths_overrides_dataset_and_result_helpers(self) -> None:
         catbench = ModuleType("catbench")
