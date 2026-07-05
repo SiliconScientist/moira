@@ -1833,19 +1833,73 @@ class MlipPreflightTests(unittest.TestCase):
 
     def test_submit_jobs_runs_preflight_before_sbatch(self) -> None:
         with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
-            with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
-                with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
-                    with patch("moira.mlip.submit.subprocess.run") as mock_run:
-                        from moira.mlip.submit import submit_jobs
+            with patch(
+                "moira.mlip.submit.freeze_config_snapshot",
+                return_value=Path("/tmp/config.run.toml"),
+            ):
+                with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
+                    with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
+                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                            from moira.mlip.submit import submit_jobs
 
-                        submit_jobs(
-                            config_path="config.toml",
-                            run_tag="run",
-                            datasets=[],
-                        )
+                            submit_jobs(
+                                config_path="config.toml",
+                                run_tag="run",
+                                datasets=[],
+                            )
 
         mock_validate.assert_called_once()
         mock_run.assert_called_once()
+        mock_make_tasks.assert_called_once_with(
+            config_path=Path("/tmp/config.run.toml"),
+            run_tag="run",
+            out_path=Path("slurm_output") / "mlip_tasks_run.jsonl",
+            datasets=[],
+        )
+
+    def test_submit_jobs_freezes_config_before_generating_tasks(self) -> None:
+        from moira.mlip.submit import submit_jobs
+
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            config_path = tmp / "config.toml"
+            config_contents = "[mlip]\n"
+            config_path.write_text(config_contents, encoding="utf-8")
+            original_cwd = Path.cwd()
+            os.chdir(tmp)
+            try:
+                def write_taskfile(*, config_path, run_tag, out_path, datasets) -> None:
+                    Path(out_path).write_text('{"model":"mace"}\n', encoding="utf-8")
+
+                with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
+                    with patch("moira.mlip.submit.make_tasks", side_effect=write_taskfile) as mock_make_tasks:
+                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                            submit_jobs(
+                                config_path=config_path,
+                                run_tag="screen",
+                                datasets=[],
+                            )
+
+                mock_validate.assert_called_once_with(config_path.resolve())
+                frozen_config_path = Path(mock_make_tasks.call_args.kwargs["config_path"])
+                self.assertNotEqual(frozen_config_path, config_path.resolve())
+                self.assertEqual(frozen_config_path.parent, config_path.resolve().parent)
+                self.assertEqual(
+                    frozen_config_path.read_text(encoding="utf-8"),
+                    config_contents,
+                )
+                mock_run.assert_called_once_with(
+                    [
+                        "sbatch",
+                        "--array=0-0",
+                        "slurm/mlip_one.sbatch",
+                        str(Path("slurm_output") / "mlip_tasks_screen.jsonl"),
+                        str(frozen_config_path),
+                    ],
+                    check=True,
+                )
+            finally:
+                os.chdir(original_cwd)
 
 
 class MlipRunnerTests(unittest.TestCase):
