@@ -1946,6 +1946,18 @@ class MlipPreflightTests(unittest.TestCase):
             out_path=Path("/tmp/run-dir") / "mlip_tasks.jsonl",
             datasets=[],
         )
+        mock_run.assert_called_once_with(
+            [
+                "sbatch",
+                "--array=0-0",
+                "--output=/tmp/run-dir/slurm_%x_%A_%a.out",
+                "--error=/tmp/run-dir/slurm_%x_%A_%a.err",
+                "slurm/mlip_one.sbatch",
+                "/tmp/run-dir/mlip_tasks.jsonl",
+                "/tmp/config.run.toml",
+            ],
+            check=True,
+        )
 
     def test_submit_jobs_can_skip_preflight(self) -> None:
         with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
@@ -1976,6 +1988,18 @@ class MlipPreflightTests(unittest.TestCase):
             run_tag="run",
             out_path=Path("/tmp/run-dir") / "mlip_tasks.jsonl",
             datasets=[],
+        )
+        mock_run.assert_called_once_with(
+            [
+                "sbatch",
+                "--array=0-0",
+                "--output=/tmp/run-dir/slurm_%x_%A_%a.out",
+                "--error=/tmp/run-dir/slurm_%x_%A_%a.err",
+                "slurm/mlip_one.sbatch",
+                "/tmp/run-dir/mlip_tasks.jsonl",
+                "/tmp/config.run.toml",
+            ],
+            check=True,
         )
 
     def test_submit_jobs_freezes_config_before_generating_tasks(self) -> None:
@@ -2022,6 +2046,8 @@ class MlipPreflightTests(unittest.TestCase):
                     [
                         "sbatch",
                         "--array=0-0",
+                        str(f"--output={taskfile_path.parent / 'slurm_%x_%A_%a.out'}"),
+                        str(f"--error={taskfile_path.parent / 'slurm_%x_%A_%a.err'}"),
                         "slurm/mlip_one.sbatch",
                         str(taskfile_path),
                         str(frozen_config_path),

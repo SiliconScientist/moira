@@ -68,10 +68,15 @@ def submit_jobs(
     if n_tasks == 0:
         raise RuntimeError("No MLIP tasks generated; nothing to submit.")
 
+    stdout_path = run_dir / "slurm_%x_%A_%a.out"
+    stderr_path = run_dir / "slurm_%x_%A_%a.err"
+
     # Submit Slurm array
     cmd = [
         "sbatch",
         f"--array=0-{n_tasks - 1}",
+        f"--output={stdout_path}",
+        f"--error={stderr_path}",
         "slurm/mlip_one.sbatch",
         str(taskfile),
         str(frozen_config_path),
