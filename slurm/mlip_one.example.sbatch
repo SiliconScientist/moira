@@ -34,6 +34,14 @@ fi
 LINE="$(sed -n "$((SLURM_ARRAY_TASK_ID+1))p" "$TASKFILE")"
 echo "TASK: $LINE"
 
+cd "$ROOT_DIR"
+PROJECT_SRC="$ROOT_DIR/src"
+if [[ -n "${PYTHONPATH:-}" ]]; then
+    export PYTHONPATH="$PROJECT_SRC:$PYTHONPATH"
+else
+    export PYTHONPATH="$PROJECT_SRC"
+fi
+
 MODEL="$("${PYTHON_BIN:-python3}" -c '
 import json
 import sys
@@ -57,8 +65,19 @@ if [[ -z "$MODEL" ]]; then
     exit 1
 fi
 
+CONFIGURED_MODEL_PYTHON="$("${PYTHON_BIN:-python3}" -c '
+import sys
+
+from moira.mlip.registry import get_model_python
+
+model = sys.argv[1]
+config_path = sys.argv[2]
+python = get_model_python(model, config_path)
+print("" if python is None else python)
+' "$MODEL" "$CONFIG")"
 MODEL_PYTHON="$ROOT_DIR/envs/$MODEL/.venv/bin/python"
 echo "MODEL=$MODEL"
+echo "CONFIGURED_MODEL_PYTHON=${CONFIGURED_MODEL_PYTHON:-}"
 echo "MODEL_PYTHON=$MODEL_PYTHON"
 ls -l "$MODEL_PYTHON" || true
 readlink -f "$MODEL_PYTHON" || true
@@ -67,18 +86,12 @@ if [[ -x "$MODEL_PYTHON" ]]; then
 else
     echo "MODEL_PYTHON_EXECUTABLE=no"
 fi
-if [[ -x "$MODEL_PYTHON" ]]; then
+if [[ -n "$CONFIGURED_MODEL_PYTHON" ]]; then
+    PYTHON_EXEC="$CONFIGURED_MODEL_PYTHON"
+elif [[ -x "$MODEL_PYTHON" ]]; then
     PYTHON_EXEC="$MODEL_PYTHON"
 else
     PYTHON_EXEC="${PYTHON_BIN:-python}"
-fi
-
-cd "$ROOT_DIR"
-PROJECT_SRC="$ROOT_DIR/src"
-if [[ -n "${PYTHONPATH:-}" ]]; then
-    export PYTHONPATH="$PROJECT_SRC:$PYTHONPATH"
-else
-    export PYTHONPATH="$PROJECT_SRC"
 fi
 
 echo "=== runtime ==="
