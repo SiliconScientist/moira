@@ -691,7 +691,7 @@ class MlipRegistryTests(unittest.TestCase):
             legacy_python = root / "envs" / "mace" / ".venv" / "bin" / "python"
             legacy_python.parent.mkdir(parents=True)
             legacy_python.write_text("", encoding="utf-8")
-            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path = root / "slurm_output" / "runs" / "screen.20260706T120000000000" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text(
                 "\n".join(
@@ -1916,20 +1916,24 @@ class MlipPreflightTests(unittest.TestCase):
     def test_submit_jobs_runs_preflight_before_sbatch(self) -> None:
         with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
             with patch(
+                "moira.mlip.submit.create_submission_run_dir",
+                return_value=Path("/tmp/run-dir"),
+            ):
+                with patch(
                 "moira.mlip.submit.freeze_config_snapshot",
                 return_value=Path("/tmp/config.run.toml"),
-            ):
-                with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
-                    with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
-                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
-                            with patch("builtins.print") as mock_print:
-                                from moira.mlip.submit import submit_jobs
+                ):
+                    with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
+                        with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
+                            with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                                with patch("builtins.print") as mock_print:
+                                    from moira.mlip.submit import submit_jobs
 
-                                submit_jobs(
-                                    config_path="config.toml",
-                                    run_tag="run",
-                                    datasets=[],
-                                )
+                                    submit_jobs(
+                                        config_path="config.toml",
+                                        run_tag="run",
+                                        datasets=[],
+                                    )
 
         mock_validate.assert_called_once_with(Path("config.toml").resolve(), show_progress=True)
         mock_print.assert_any_call(
@@ -1939,34 +1943,38 @@ class MlipPreflightTests(unittest.TestCase):
         mock_make_tasks.assert_called_once_with(
             config_path=Path("/tmp/config.run.toml"),
             run_tag="run",
-            out_path=Path("slurm_output") / "mlip_tasks_run.jsonl",
+            out_path=Path("/tmp/run-dir") / "mlip_tasks.jsonl",
             datasets=[],
         )
 
     def test_submit_jobs_can_skip_preflight(self) -> None:
         with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
             with patch(
+                "moira.mlip.submit.create_submission_run_dir",
+                return_value=Path("/tmp/run-dir"),
+            ):
+                with patch(
                 "moira.mlip.submit.freeze_config_snapshot",
                 return_value=Path("/tmp/config.run.toml"),
-            ):
-                with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
-                    with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
-                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
-                            from moira.mlip.submit import submit_jobs
+                ):
+                    with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
+                        with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
+                            with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                                from moira.mlip.submit import submit_jobs
 
-                            submit_jobs(
-                                config_path="config.toml",
-                                run_tag="run",
-                                datasets=[],
-                                skip_preflight=True,
-                            )
+                                submit_jobs(
+                                    config_path="config.toml",
+                                    run_tag="run",
+                                    datasets=[],
+                                    skip_preflight=True,
+                                )
 
         mock_validate.assert_not_called()
         mock_run.assert_called_once()
         mock_make_tasks.assert_called_once_with(
             config_path=Path("/tmp/config.run.toml"),
             run_tag="run",
-            out_path=Path("slurm_output") / "mlip_tasks_run.jsonl",
+            out_path=Path("/tmp/run-dir") / "mlip_tasks.jsonl",
             datasets=[],
         )
 
@@ -1995,10 +2003,16 @@ class MlipPreflightTests(unittest.TestCase):
 
                 mock_validate.assert_called_once_with(config_path.resolve(), show_progress=True)
                 frozen_config_path = Path(mock_make_tasks.call_args.kwargs["config_path"])
+                taskfile_path = Path(mock_make_tasks.call_args.kwargs["out_path"])
                 self.assertNotEqual(frozen_config_path, config_path.resolve())
                 self.assertEqual(
                     frozen_config_path.parent,
-                    (tmp / "slurm_output" / "config_snapshots").resolve(),
+                    taskfile_path.parent,
+                )
+                self.assertEqual(taskfile_path.name, "mlip_tasks.jsonl")
+                self.assertEqual(
+                    frozen_config_path.parent.parent,
+                    (tmp / "slurm_output" / "runs").resolve(),
                 )
                 self.assertEqual(
                     frozen_config_path.read_text(encoding="utf-8"),
@@ -2009,7 +2023,7 @@ class MlipPreflightTests(unittest.TestCase):
                         "sbatch",
                         "--array=0-0",
                         "slurm/mlip_one.sbatch",
-                        str(Path("slurm_output") / "mlip_tasks_screen.jsonl"),
+                        str(taskfile_path),
                         str(frozen_config_path),
                     ],
                     check=True,
@@ -2017,8 +2031,8 @@ class MlipPreflightTests(unittest.TestCase):
             finally:
                 os.chdir(original_cwd)
 
-    def test_config_snapshot_dir_uses_ignored_slurm_output_subdir(self) -> None:
-        from moira.mlip.submit import config_snapshot_dir
+    def test_create_submission_run_dir_uses_ignored_slurm_output_subdir(self) -> None:
+        from moira.mlip.submit import create_submission_run_dir
 
         with TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -2028,12 +2042,13 @@ class MlipPreflightTests(unittest.TestCase):
             config_path.parent.mkdir(parents=True)
             config_path.write_text("", encoding="utf-8")
 
-            snapshot_dir = config_snapshot_dir(config_path)
+            run_dir = create_submission_run_dir(config_path, run_tag="screen")
 
         self.assertEqual(
-            snapshot_dir,
-            (root / "slurm_output" / "config_snapshots").resolve(),
+            run_dir.parent,
+            (root / "slurm_output" / "runs").resolve(),
         )
+        self.assertTrue(run_dir.name.startswith("screen."))
 
 
 class MlipRunnerTests(unittest.TestCase):
@@ -2578,7 +2593,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
             root = Path(tmp_dir)
             (root / "pyproject.toml").write_text("", encoding="utf-8")
             (root / "src" / "moira").mkdir(parents=True)
-            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path = root / "slurm_output" / "runs" / "screen.20260706T120000000000" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text("", encoding="utf-8")
 
@@ -2591,7 +2606,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
             root = Path(tmp_dir)
             (root / "pyproject.toml").write_text("", encoding="utf-8")
             (root / "src" / "moira").mkdir(parents=True)
-            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path = root / "slurm_output" / "runs" / "screen.20260706T120000000000" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text("", encoding="utf-8")
 
@@ -2609,7 +2624,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
             (root / "src" / "moira").mkdir(parents=True)
             vendor_path = root / "vendor" / "catbench" / "catbench"
             vendor_path.mkdir(parents=True)
-            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path = root / "slurm_output" / "runs" / "screen.20260706T120000000000" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text("[mlip]\n", encoding="utf-8")
 
@@ -2624,7 +2639,7 @@ class CatbenchPathPatchTests(unittest.TestCase):
             (root / "src" / "moira").mkdir(parents=True)
             custom_path = root / "external" / "catbench" / "catbench"
             custom_path.mkdir(parents=True)
-            config_path = root / "slurm_output" / "config_snapshots" / "config.toml"
+            config_path = root / "slurm_output" / "runs" / "screen.20260706T120000000000" / "config.toml"
             config_path.parent.mkdir(parents=True)
             config_path.write_text(
                 '[mlip]\ncatbench_source = "external/catbench"\n',

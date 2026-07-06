@@ -307,7 +307,8 @@ python slurm/mlip_submit.sh config.toml screen
 python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 ```
 
-The submit path snapshots `config.toml` into `slurm_output/config_snapshots/` and
+The submit path snapshots `config.toml` into a unique directory under
+`slurm_output/runs/` and
 passes that frozen file to `sbatch`, so later edits to your working config do not
 change queued jobs. If you assemble `sbatch` commands manually, pass the frozen
 snapshot path rather than the mutable top-level `config.toml`.

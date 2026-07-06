@@ -10,17 +10,21 @@ from moira.mlip.tasks import make_tasks
 from moira.pathing import get_project_root
 
 
-def config_snapshot_dir(config_path: str | Path) -> Path:
-    return get_project_root(config_path) / "slurm_output" / "config_snapshots"
+def submission_runs_dir(config_path: str | Path) -> Path:
+    return get_project_root(config_path) / "slurm_output" / "runs"
 
 
-def freeze_config_snapshot(config_path: str | Path, *, run_tag: str) -> Path:
-    source_path = Path(config_path).resolve()
-    snapshot_dir = config_snapshot_dir(source_path)
-    snapshot_dir.mkdir(parents=True, exist_ok=True)
+def create_submission_run_dir(config_path: str | Path, *, run_tag: str) -> Path:
+    runs_dir = submission_runs_dir(config_path)
     timestamp = datetime.now().strftime("%Y%m%dT%H%M%S%f")
-    snapshot_name = f"{source_path.stem}.{run_tag}.{timestamp}{source_path.suffix}"
-    snapshot_path = snapshot_dir / snapshot_name
+    run_dir = runs_dir / f"{run_tag}.{timestamp}"
+    run_dir.mkdir(parents=True, exist_ok=False)
+    return run_dir
+
+
+def freeze_config_snapshot(config_path: str | Path, *, run_dir: str | Path) -> Path:
+    source_path = Path(config_path).resolve()
+    snapshot_path = Path(run_dir).resolve() / source_path.name
     shutil.copy2(source_path, snapshot_path)
     return snapshot_path
 
@@ -43,10 +47,13 @@ def submit_jobs(
     if run_tag is None:
         run_tag = "run"
 
-    frozen_config_path = freeze_config_snapshot(resolved_config_path, run_tag=run_tag)
+    run_dir = create_submission_run_dir(resolved_config_path, run_tag=run_tag)
+    frozen_config_path = freeze_config_snapshot(
+        resolved_config_path,
+        run_dir=run_dir,
+    )
 
-    taskfile = Path("slurm_output") / f"mlip_tasks_{run_tag}.jsonl"
-    taskfile.parent.mkdir(parents=True, exist_ok=True)
+    taskfile = run_dir / "mlip_tasks.jsonl"
 
     # Generate task file
     make_tasks(
