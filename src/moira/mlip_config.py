@@ -45,6 +45,7 @@ class MLIPConfig(BaseModel):
     results_dir: Optional[Path] = None
     adapter_backend: str = "rootstock"
     optimizer: str = "LBFGS"
+    save_files: bool = True
     shard_size: Optional[int] = Field(default=None, ge=1)
     num_shards: Optional[int] = Field(default=None, ge=1)
     shard_index: Optional[int] = Field(default=None, ge=0)

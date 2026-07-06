@@ -61,6 +61,7 @@ def run(
     resolved_config_path = Path(config_path).resolve()
     config = load_config(resolved_config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
+    save_files = bool(config.get("mlip", {}).get("save_files", True))
     dev_run = bool(config.get("mlip", {}).get("dev_run", False))
     n_calcs = 1 if dev_run else n_calcs
     results_dir = (
@@ -100,6 +101,7 @@ def run(
                 mlip_name=mlip_name,
                 benchmark=dataset_name,
                 optimizer=optimizer,
+                save_files=save_files,
                 model_name=model,
                 slab_cache_dir=slab_cache_dir_override,
             )

@@ -942,6 +942,49 @@ class ConfigParsingTests(unittest.TestCase):
         self.assertIsNone(config.mlip.shard_size)
         self.assertIsNone(config.mlip.num_shards)
         self.assertIsNone(config.mlip.shard_index)
+        self.assertTrue(config.mlip.save_files)
+
+    def test_get_config_parses_save_files_flag(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[ingest]",
+                        'source = "data/screening/trimetallic_n.db"',
+                        'dataset_name = "trimetallic_n"',
+                        'profile = "elemental_adsorption_ase_db"',
+                        "",
+                        "[ingest.stoich]",
+                        'elements = ["N"]',
+                        'basis_species = ["N2"]',
+                        "",
+                        "[ingest.stoich.basis_composition]",
+                        "N2 = { N = 2 }",
+                        "",
+                        "[mlip]",
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "save_files = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock]",
+                        'root = "/tmp/rootstock"',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            config = get_config(config_path)
+
+        self.assertFalse(config.mlip.save_files)
 
     def test_get_config_parses_sharding_fields(self) -> None:
         with TemporaryDirectory() as tmp_dir:
@@ -1142,6 +1185,70 @@ class LegacyUmaAdapterTests(unittest.TestCase):
         self.assertEqual(
             fake_adsorption.AdsorptionCalculation.call_args.kwargs["optimizer"],
             "FIRE",
+        )
+
+    def test_legacy_mace_adapter_passes_save_files_to_catbench(self) -> None:
+        sys.modules.pop("moira.adapters.legacy.mace_adapter", None)
+        fake_catbench = ModuleType("catbench")
+        fake_adsorption = ModuleType("catbench.adsorption")
+        fake_calc_instance = Mock()
+        fake_calc_instance.run.return_value = "/tmp/results"
+        fake_adsorption.AdsorptionCalculation = Mock(return_value=fake_calc_instance)
+        fake_catbench.adsorption = fake_adsorption
+
+        fake_mace = ModuleType("mace")
+        fake_mace_calculators = ModuleType("mace.calculators")
+        fake_mace_calculators.mace_mp = Mock(return_value=Mock())
+        fake_mace.calculators = fake_mace_calculators
+
+        with patch.dict(
+            sys.modules,
+            {
+                "catbench": fake_catbench,
+                "catbench.adsorption": fake_adsorption,
+                "mace": fake_mace,
+                "mace.calculators": fake_mace_calculators,
+            },
+        ):
+            from moira.adapters.legacy import mace_adapter
+
+            with TemporaryDirectory() as tmp_dir, patch.object(
+                mace_adapter,
+                "load_config",
+                return_value={
+                    "mlip": {
+                        "optimizer": "FIRE",
+                        "save_files": False,
+                        "dev_run": False,
+                        "rootstock": {
+                            "models": {
+                                "mace": {
+                                    "checkpoint": "medium",
+                                    "mlip_name": "mace-mh-1",
+                                }
+                            }
+                        },
+                    }
+                },
+            ), patch.object(
+                mace_adapter, "resolve_results_dir", return_value=Path(tmp_dir) / "results"
+            ), patch.object(
+                mace_adapter, "patch_adsorption_paths"
+            ) as mock_patch_paths, patch.object(
+                mace_adapter, "enrich_result_file"
+            ):
+                mock_patch_paths.return_value.__enter__ = Mock(return_value=None)
+                mock_patch_paths.return_value.__exit__ = Mock(return_value=False)
+                mace_adapter.run(
+                    model="mace",
+                    dataset_name="example",
+                    dataset_path="data/raw_data/example.json",
+                    device="cpu",
+                    config_path="config.toml",
+                )
+
+        self.assertFalse(
+            fake_adsorption.AdsorptionCalculation.call_args.kwargs["save_files"]
         )
 
     def test_legacy_alphanet_adapter_uses_torch_ase_calculator(self) -> None:
