@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 import shutil
 import subprocess
 from pathlib import Path
@@ -27,6 +28,19 @@ def freeze_config_snapshot(config_path: str | Path, *, run_dir: str | Path) -> P
     snapshot_path = Path(run_dir).resolve() / source_path.name
     shutil.copy2(source_path, snapshot_path)
     return snapshot_path
+
+
+def _parse_sbatch_job_id(output: str) -> str | None:
+    match = re.search(r"\bSubmitted batch job (\d+)\b", output)
+    if match is None:
+        return None
+    return match.group(1)
+
+
+def write_submission_job_id(*, run_dir: str | Path, job_id: str) -> Path:
+    job_id_path = Path(run_dir).resolve() / "slurm_job_id.txt"
+    job_id_path.write_text(f"{job_id}\n", encoding="utf-8")
+    return job_id_path
 
 
 def submit_jobs(
@@ -85,4 +99,14 @@ def submit_jobs(
     print("Submitting Slurm array:")
     print(" ", " ".join(cmd))
 
-    subprocess.run(cmd, check=True)
+    result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    stdout = result.stdout.strip()
+    stderr = result.stderr.strip()
+    if stdout:
+        print(stdout)
+    if stderr:
+        print(stderr)
+
+    job_id = _parse_sbatch_job_id(result.stdout)
+    if job_id is not None:
+        write_submission_job_id(run_dir=run_dir, job_id=job_id)

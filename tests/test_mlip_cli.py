@@ -2036,6 +2036,11 @@ class MlipPreflightTests(unittest.TestCase):
                                 with patch("builtins.print") as mock_print:
                                     from moira.mlip.submit import submit_jobs
 
+                                    mock_run.return_value = SimpleNamespace(
+                                        stdout="Submitted batch job 12345\n",
+                                        stderr="",
+                                    )
+
                                     submit_jobs(
                                         config_path="config.toml",
                                         run_tag="run",
@@ -2064,6 +2069,8 @@ class MlipPreflightTests(unittest.TestCase):
                 "/tmp/config.run.toml",
             ],
             check=True,
+            capture_output=True,
+            text=True,
         )
 
     def test_submit_jobs_can_skip_preflight(self) -> None:
@@ -2080,6 +2087,11 @@ class MlipPreflightTests(unittest.TestCase):
                         with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
                             with patch("moira.mlip.submit.subprocess.run") as mock_run:
                                 from moira.mlip.submit import submit_jobs
+
+                                mock_run.return_value = SimpleNamespace(
+                                    stdout="Submitted batch job 12345\n",
+                                    stderr="",
+                                )
 
                                 submit_jobs(
                                     config_path="config.toml",
@@ -2107,6 +2119,8 @@ class MlipPreflightTests(unittest.TestCase):
                 "/tmp/config.run.toml",
             ],
             check=True,
+            capture_output=True,
+            text=True,
         )
 
     def test_submit_jobs_freezes_config_before_generating_tasks(self) -> None:
@@ -2124,13 +2138,17 @@ class MlipPreflightTests(unittest.TestCase):
                     Path(out_path).write_text('{"model":"mace"}\n', encoding="utf-8")
 
                 with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
-                    with patch("moira.mlip.submit.make_tasks", side_effect=write_taskfile) as mock_make_tasks:
-                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
-                            submit_jobs(
-                                config_path=config_path,
-                                run_tag="screen",
-                                datasets=[],
-                            )
+                        with patch("moira.mlip.submit.make_tasks", side_effect=write_taskfile) as mock_make_tasks:
+                            with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                                mock_run.return_value = SimpleNamespace(
+                                    stdout="Submitted batch job 12345\n",
+                                    stderr="",
+                                )
+                                submit_jobs(
+                                    config_path=config_path,
+                                    run_tag="screen",
+                                    datasets=[],
+                                )
 
                 mock_validate.assert_called_once_with(config_path.resolve(), show_progress=True)
                 frozen_config_path = Path(mock_make_tasks.call_args.kwargs["config_path"])
@@ -2160,9 +2178,56 @@ class MlipPreflightTests(unittest.TestCase):
                         str(frozen_config_path),
                     ],
                     check=True,
+                    capture_output=True,
+                    text=True,
                 )
             finally:
                 os.chdir(original_cwd)
+
+    def test_submit_jobs_writes_job_id_into_run_dir(self) -> None:
+        from moira.mlip.submit import submit_jobs
+
+        with TemporaryDirectory() as tmp_dir:
+            tmp = Path(tmp_dir)
+            config_path = tmp / "config.toml"
+            config_path.write_text("[mlip]\n", encoding="utf-8")
+            run_dir = tmp / "slurm_output" / "runs" / "screen.20260706T000000000000"
+            run_dir.mkdir(parents=True)
+            frozen_config_path = run_dir / "config.toml"
+            frozen_config_path.write_text("[mlip]\n", encoding="utf-8")
+
+            with (
+                patch("moira.mlip.submit.validate_model_envs"),
+                patch(
+                    "moira.mlip.submit.create_submission_run_dir",
+                    return_value=run_dir,
+                ),
+                patch(
+                    "moira.mlip.submit.freeze_config_snapshot",
+                    return_value=frozen_config_path,
+                ),
+                patch("moira.mlip.submit.make_tasks") as mock_make_tasks,
+                patch("moira.mlip.submit.subprocess.run") as mock_run,
+            ):
+                mock_make_tasks.side_effect = lambda **kwargs: Path(kwargs["out_path"]).write_text(
+                    '{"model":"mace"}\n',
+                    encoding="utf-8",
+                )
+                mock_run.return_value = SimpleNamespace(
+                    stdout="Submitted batch job 12345\n",
+                    stderr="",
+                )
+
+                submit_jobs(
+                    config_path=config_path,
+                    run_tag="screen",
+                    datasets=[],
+                )
+
+            self.assertEqual(
+                (run_dir / "slurm_job_id.txt").read_text(encoding="utf-8"),
+                "12345\n",
+            )
 
     def test_create_submission_run_dir_uses_ignored_slurm_output_subdir(self) -> None:
         from moira.mlip.submit import create_submission_run_dir
