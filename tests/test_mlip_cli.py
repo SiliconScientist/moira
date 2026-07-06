@@ -1939,6 +1939,38 @@ class LegacyUmaAdapterTests(unittest.TestCase):
 
 
 class MlipPreflightTests(unittest.TestCase):
+    def test_validate_model_envs_rejects_models_without_resolved_python(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            config_path = Path(tmp_dir) / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "rootstock"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock]",
+                        'root = "/tmp/rootstock"',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(
+                RuntimeError,
+                "Preflight could not resolve a Python interpreter for model\\(s\\): mace",
+            ):
+                validate_model_envs(config_path)
+
     def test_validate_model_envs_checks_legacy_imports(self) -> None:
         with TemporaryDirectory() as tmp_dir:
             tmp_path = Path(tmp_dir)

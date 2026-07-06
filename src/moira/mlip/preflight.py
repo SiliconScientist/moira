@@ -51,16 +51,21 @@ def validate_model_envs(
 ) -> None:
     config_path = Path(config_path).resolve()
     specs = get_model_specs(config_path)
+    missing_python = [model for model, spec in specs.items() if spec.python is None]
+    if missing_python:
+        models_str = ", ".join(sorted(missing_python))
+        raise RuntimeError(
+            "Preflight could not resolve a Python interpreter for model(s): "
+            f"{models_str}. Configure mlip.rootstock.python for rootstock runs or "
+            "create envs/<model>/.venv/bin/python for legacy runs."
+        )
 
-    checks = [(model, spec) for model, spec in specs.items() if spec.python is not None]
+    checks = list(specs.items())
 
     for index, (model, spec) in enumerate(checks, start=1):
         assert spec.python is not None
         if show_progress:
             print(f"Preflight [{index}/{len(checks)}]: checking {model}")
-
-        if spec.python is None:
-            continue
 
         _validate_python_exists(model, spec.python)
 
