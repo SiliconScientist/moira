@@ -36,6 +36,7 @@ def submit_jobs(
     if skip_preflight:
         print("Skipping MLIP preflight checks.")
     else:
+        print("Running MLIP preflight checks. To skip them, rerun with --skip-preflight.")
         validate_model_envs(resolved_config_path, show_progress=True)
 
     # Decide run tag

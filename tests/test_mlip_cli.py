@@ -1922,15 +1922,19 @@ class MlipPreflightTests(unittest.TestCase):
                 with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
                     with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
                         with patch("moira.mlip.submit.subprocess.run") as mock_run:
-                            from moira.mlip.submit import submit_jobs
+                            with patch("builtins.print") as mock_print:
+                                from moira.mlip.submit import submit_jobs
 
-                            submit_jobs(
-                                config_path="config.toml",
-                                run_tag="run",
-                                datasets=[],
-                            )
+                                submit_jobs(
+                                    config_path="config.toml",
+                                    run_tag="run",
+                                    datasets=[],
+                                )
 
         mock_validate.assert_called_once_with(Path("config.toml").resolve(), show_progress=True)
+        mock_print.assert_any_call(
+            "Running MLIP preflight checks. To skip them, rerun with --skip-preflight."
+        )
         mock_run.assert_called_once()
         mock_make_tasks.assert_called_once_with(
             config_path=Path("/tmp/config.run.toml"),
