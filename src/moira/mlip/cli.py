@@ -118,6 +118,11 @@ def main(argv=None):
     )
     parser.add_argument("--config", default="config.toml")
     parser.add_argument("--run-tag", default=None)
+    parser.add_argument(
+        "--skip-preflight",
+        action="store_true",
+        help="Skip MLIP environment preflight checks before task generation and sbatch.",
+    )
     parser.add_argument("datasets", nargs="*", help="Optional dataset paths")
     args = parser.parse_args(argv)
 
@@ -127,6 +132,7 @@ def main(argv=None):
         config_path=args.config,
         run_tag=args.run_tag,
         datasets=args.datasets,
+        skip_preflight=args.skip_preflight,
     )
 
 

@@ -44,11 +44,21 @@ def _validate_import(model: str, python: str, module_name: str) -> None:
     )
 
 
-def validate_model_envs(config_path: str | Path) -> None:
+def validate_model_envs(
+    config_path: str | Path,
+    *,
+    show_progress: bool = False,
+) -> None:
     config_path = Path(config_path).resolve()
     specs = get_model_specs(config_path)
 
-    for model, spec in specs.items():
+    checks = [(model, spec) for model, spec in specs.items() if spec.python is not None]
+
+    for index, (model, spec) in enumerate(checks, start=1):
+        assert spec.python is not None
+        if show_progress:
+            print(f"Preflight [{index}/{len(checks)}]: checking {model}")
+
         if spec.python is None:
             continue
 

@@ -30,9 +30,13 @@ def submit_jobs(
     config_path: str | Path,
     run_tag: str | None,
     datasets: list[str] | None,
+    skip_preflight: bool = False,
 ) -> None:
     resolved_config_path = Path(config_path).resolve()
-    validate_model_envs(resolved_config_path)
+    if skip_preflight:
+        print("Skipping MLIP preflight checks.")
+    else:
+        validate_model_envs(resolved_config_path, show_progress=True)
 
     # Decide run tag
     if run_tag is None:

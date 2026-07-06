@@ -79,6 +79,7 @@ class MlipCliTests(unittest.TestCase):
             config_path="config.toml",
             run_tag=None,
             datasets=[],
+            skip_preflight=False,
         )
 
     def test_default_invocation_delegates_to_submit_jobs(self) -> None:
@@ -89,6 +90,18 @@ class MlipCliTests(unittest.TestCase):
             config_path="config.toml",
             run_tag="tag",
             datasets=["dataset.json"],
+            skip_preflight=False,
+        )
+
+    def test_default_invocation_supports_skip_preflight(self) -> None:
+        with patch("moira.mlip.submit.submit_jobs") as mock_submit_jobs:
+            mlip_main(["--config", "config.toml", "--skip-preflight", "dataset.json"])
+
+        mock_submit_jobs.assert_called_once_with(
+            config_path="config.toml",
+            run_tag=None,
+            datasets=["dataset.json"],
+            skip_preflight=True,
         )
 
     def test_python_dash_m_moira_mlip_delegates_to_cli_main(self) -> None:
@@ -1864,6 +1877,42 @@ class MlipPreflightTests(unittest.TestCase):
                     text=True,
                 )
 
+    def test_validate_model_envs_prints_progress_when_requested(self) -> None:
+        with TemporaryDirectory() as tmp_dir:
+            tmp_path = Path(tmp_dir)
+            legacy_python = tmp_path / "envs" / "mace" / ".venv" / "bin" / "python"
+            legacy_python.parent.mkdir(parents=True)
+            legacy_python.write_text("", encoding="utf-8")
+            config_path = tmp_path / "config.toml"
+            config_path.write_text(
+                "\n".join(
+                    [
+                        "[mlip]",
+                        'adapter_backend = "legacy"',
+                        "dev_n = 2",
+                        "dev_run = false",
+                        "",
+                        "[mlip.models]",
+                        'enabled = ["mace"]',
+                        "",
+                        "[mlip.rootstock.models.mace]",
+                        'model = "mace"',
+                        'mlip_name = "mace-mh-1"',
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with (
+                patch("moira.mlip.preflight.subprocess.run") as mock_run,
+                patch("builtins.print") as mock_print,
+            ):
+                mock_run.return_value = SimpleNamespace(returncode=0, stderr="", stdout="")
+                validate_model_envs(config_path, show_progress=True)
+
+            mock_print.assert_any_call("Preflight [1/1]: checking mace")
+
     def test_submit_jobs_runs_preflight_before_sbatch(self) -> None:
         with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
             with patch(
@@ -1881,7 +1930,34 @@ class MlipPreflightTests(unittest.TestCase):
                                 datasets=[],
                             )
 
-        mock_validate.assert_called_once()
+        mock_validate.assert_called_once_with(Path("config.toml").resolve(), show_progress=True)
+        mock_run.assert_called_once()
+        mock_make_tasks.assert_called_once_with(
+            config_path=Path("/tmp/config.run.toml"),
+            run_tag="run",
+            out_path=Path("slurm_output") / "mlip_tasks_run.jsonl",
+            datasets=[],
+        )
+
+    def test_submit_jobs_can_skip_preflight(self) -> None:
+        with patch("moira.mlip.submit.validate_model_envs") as mock_validate:
+            with patch(
+                "moira.mlip.submit.freeze_config_snapshot",
+                return_value=Path("/tmp/config.run.toml"),
+            ):
+                with patch("moira.mlip.submit.make_tasks") as mock_make_tasks:
+                    with patch("pathlib.Path.open", mock_open(read_data='{"model":"mace"}\n')):
+                        with patch("moira.mlip.submit.subprocess.run") as mock_run:
+                            from moira.mlip.submit import submit_jobs
+
+                            submit_jobs(
+                                config_path="config.toml",
+                                run_tag="run",
+                                datasets=[],
+                                skip_preflight=True,
+                            )
+
+        mock_validate.assert_not_called()
         mock_run.assert_called_once()
         mock_make_tasks.assert_called_once_with(
             config_path=Path("/tmp/config.run.toml"),
@@ -1913,7 +1989,7 @@ class MlipPreflightTests(unittest.TestCase):
                                 datasets=[],
                             )
 
-                mock_validate.assert_called_once_with(config_path.resolve())
+                mock_validate.assert_called_once_with(config_path.resolve(), show_progress=True)
                 frozen_config_path = Path(mock_make_tasks.call_args.kwargs["config_path"])
                 self.assertNotEqual(frozen_config_path, config_path.resolve())
                 self.assertEqual(
