@@ -118,13 +118,19 @@ echo "=== env ==="
 env | grep -E '^(SLURM|CUDA|NVIDIA|TORCH)_' | sort || true
 echo
 
-echo "=== torch diag ==="
+echo "=== framework diag ==="
 "$PYTHON_EXEC" - <<'PY'
 import sys
 
 print("python:", sys.executable)
+
 try:
     import torch
+except ModuleNotFoundError:
+    print("torch: not installed in this model environment")
+except Exception as exc:
+    print("torch diag failed:", repr(exc))
+else:
     print("torch:", torch.__version__)
     print("torch.version.cuda:", torch.version.cuda)
     print("cuda.is_available:", torch.cuda.is_available())
@@ -134,8 +140,26 @@ try:
             print(f"device[{i}]:", torch.cuda.get_device_name(i))
     else:
         print("cuda unavailable")
+
+try:
+    import tensorflow as tf
+except ModuleNotFoundError:
+    print("tensorflow: not installed in this model environment")
 except Exception as exc:
-    print("torch diag failed:", repr(exc))
+    print("tensorflow diag failed:", repr(exc))
+else:
+    print("tensorflow:", tf.__version__)
+    try:
+        gpu_devices = tf.config.list_physical_devices("GPU")
+    except Exception as exc:
+        print("tensorflow gpu query failed:", repr(exc))
+    else:
+        print("tensorflow.gpu_count:", len(gpu_devices))
+        if gpu_devices:
+            for i, device in enumerate(gpu_devices):
+                print(f"tensorflow.device[{i}]:", device)
+        else:
+            print("tensorflow gpu unavailable")
 PY
 echo
 
