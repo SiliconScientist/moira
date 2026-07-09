@@ -111,6 +111,26 @@ def main(argv=None):
             dev_run=args.dev_run,
         )
         return
+    if argv and argv[0] == "analyze-adsorption-dataset":
+        parser = argparse.ArgumentParser(
+            prog="moira",
+            description="Analyze adsorption dataset compositions and export adslabs",
+        )
+        parser.add_argument("--input", required=True)
+        parser.add_argument("--csv-out", required=True)
+        parser.add_argument("--summary-out", required=True)
+        parser.add_argument("--structures-out", required=True)
+        args = parser.parse_args(argv[1:])
+
+        from moira.mlip.dataset_analysis import analyze_adsorption_dataset
+
+        analyze_adsorption_dataset(
+            args.input,
+            csv_output_path=args.csv_out,
+            summary_output_path=args.summary_out,
+            structures_output_path=args.structures_out,
+        )
+        return
 
     parser = argparse.ArgumentParser(
         prog="moira",
