@@ -67,8 +67,11 @@ workaround: TensorFlow 2.21 and `tf_keras` install cleanly on Python 3.13,
 while the published `tensorpotential` metadata still requires `tensorflow<2.20`.
 The setup script therefore installs GRACE's base dependencies from
 `envs/grace/requirements.txt` and then installs `grace-tensorpotential` from a
-pinned GitHub commit with `--no-deps`. Override that source with
-`GRACE_GIT_REF=<tag-or-commit>` if needed.
+pinned GitHub commit with `--no-deps`. That requirements file now uses
+`tensorflow[and-cuda]==2.21.0` so the GRACE virtualenv carries NVIDIA's
+user-space CUDA/cuDNN wheels on clusters that do not provide cuDNN modules.
+Override the tensorpotential source with `GRACE_GIT_REF=<tag-or-commit>` if
+needed.
 
 `aqcat25` also needs a packaging workaround. The AQCat25 model card documents a
 Python 3.10 / `torch==2.4.0` path, but the fairchem tag it depends on declares

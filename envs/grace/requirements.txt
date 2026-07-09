@@ -1,4 +1,7 @@
 # Python 3.13-compatible base dependencies for GRACE.
+# Install TensorFlow with its CUDA extra so the virtualenv carries the
+# user-space CUDA/cuDNN runtime TensorFlow expects on clusters that do not
+# provide those libraries as modules.
 # Install tensorpotential itself separately with --no-deps from GitHub until
 # upstream publishes metadata that allows the TensorFlow 2.21 line.
 ase==3.26.0
@@ -11,6 +14,6 @@ pyyaml>=6.0.2
 tqdm
 questionary>=2.0
 rich>=13.0
-tensorflow==2.21.0
+tensorflow[and-cuda]==2.21.0
 tf_keras==2.21.0
 setuptools<83

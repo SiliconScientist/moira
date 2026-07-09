@@ -94,6 +94,38 @@ else
     PYTHON_EXEC="${PYTHON_BIN:-python}"
 fi
 
+TF_GPU_LIB_PATHS="$("$PYTHON_EXEC" - <<'PY'
+import importlib
+
+modules = [
+    "nvidia.cublas.lib",
+    "nvidia.cuda_runtime.lib",
+    "nvidia.cudnn.lib",
+    "nvidia.cufft.lib",
+    "nvidia.curand.lib",
+    "nvidia.cusolver.lib",
+    "nvidia.cusparse.lib",
+]
+paths = []
+for module_name in modules:
+    try:
+        module = importlib.import_module(module_name)
+    except Exception:
+        continue
+    for path in getattr(module, "__path__", []):
+        if path and path not in paths:
+            paths.append(path)
+print(":".join(paths))
+PY
+)"
+if [[ -n "$TF_GPU_LIB_PATHS" ]]; then
+    if [[ -n "${LD_LIBRARY_PATH:-}" ]]; then
+        export LD_LIBRARY_PATH="$TF_GPU_LIB_PATHS:$LD_LIBRARY_PATH"
+    else
+        export LD_LIBRARY_PATH="$TF_GPU_LIB_PATHS"
+    fi
+fi
+
 echo "=== runtime ==="
 date
 hostname
@@ -104,6 +136,8 @@ echo "SLURM_JOB_GPUS=${SLURM_JOB_GPUS:-}"
 echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-}"
 echo "PYTHON_EXEC=$PYTHON_EXEC"
 echo "PYTHONPATH=${PYTHONPATH:-}"
+echo "TF_GPU_LIB_PATHS=${TF_GPU_LIB_PATHS:-}"
+echo "LD_LIBRARY_PATH=${LD_LIBRARY_PATH:-}"
 echo
 
 echo "=== nvidia-smi ==="
