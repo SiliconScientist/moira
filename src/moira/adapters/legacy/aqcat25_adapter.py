@@ -75,8 +75,6 @@ def run(
     results_dir_override: str | None = None,
     slab_cache_dir_override: str | None = None,
 ) -> None:
-    del device  # AQCat25's patched calculator manages devices internally.
-
     config = load_config(config_path)
     optimizer = str(config.get("mlip", {}).get("optimizer", "LBFGS"))
     save_files = bool(config.get("mlip", {}).get("save_files", True))
@@ -110,6 +108,7 @@ def run(
         patched_calc(
             checkpoint_path=resolved_checkpoint,
             is_spin_off=is_spin_off,
+            cpu=device != "cuda",
         )
         for _ in range(n_calcs)
     ]
