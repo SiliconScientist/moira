@@ -96,18 +96,20 @@ fi
 
 TF_GPU_LIB_PATHS="$("$PYTHON_EXEC" - <<'PY'
 import importlib
+import pkgutil
 
-modules = [
-    "nvidia.cublas.lib",
-    "nvidia.cuda_runtime.lib",
-    "nvidia.cudnn.lib",
-    "nvidia.cufft.lib",
-    "nvidia.curand.lib",
-    "nvidia.cusolver.lib",
-    "nvidia.cusparse.lib",
-]
 paths = []
-for module_name in modules:
+try:
+    import nvidia
+except Exception:
+    module_names = []
+else:
+    module_names = sorted(
+        f"nvidia.{module.name}.lib"
+        for module in pkgutil.iter_modules(nvidia.__path__)
+    )
+
+for module_name in module_names:
     try:
         module = importlib.import_module(module_name)
     except Exception:
@@ -183,6 +185,13 @@ except Exception as exc:
     print("tensorflow diag failed:", repr(exc))
 else:
     print("tensorflow:", tf.__version__)
+    try:
+        build_info = tf.sysconfig.get_build_info()
+    except Exception as exc:
+        print("tensorflow build info failed:", repr(exc))
+    else:
+        print("tensorflow.build.cuda_version:", build_info.get("cuda_version"))
+        print("tensorflow.build.cudnn_version:", build_info.get("cudnn_version"))
     try:
         gpu_devices = tf.config.list_physical_devices("GPU")
     except Exception as exc:
