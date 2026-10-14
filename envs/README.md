@@ -59,7 +59,7 @@ adapter expects a compiled ASE model file produced with upstream's
 type names already match chemical symbols, you can set
 `chemical_species_to_atom_type_map = true` in the model metadata to suppress
 NequIP's default warning; otherwise provide an explicit mapping table. See the
-repo README's Allegro Setup section for the tested Allegro-OAM-L download,
+[Allegro setup guide](../docs/workflows.md#allegro-setup) for the tested Allegro-OAM-L download,
 HPC upload, GPU compilation, and configuration process.
 
 `grace` now has a tested Python 3.13 path, but it still needs a packaging

@@ -1,362 +1,131 @@
 # Moira
-MLIP ingestion and prediction workflows extracted from Oasis.
 
-## Naming
+Moira runs machine-learned interatomic potentials (MLIPs) on adsorption datasets
+and keeps each sample's predictions linked to its source metadata and anomaly
+flags. MLIPs predict atomic energies and forces; comparing their predictions
+helps assess how strongly an atom or molecule binds to a catalyst surface.
 
-- Project name: `Moira`
-- Repository slug: `moira`
-- Python package name: `moira`
-- CLI: `moira`
-- Python import namespace: `moira`
+The project grew out of a need to run ten MLIPs with different implementations
+and software environments through a common workflow. Extracted from Oasis,
+Moira handles dataset preparation, model execution, and result extraction so
+that predictions remain traceable across models and calculations.
 
-## Environment
+That traceability supports prediction abstention: a downstream study can exclude
+an anomalous prediction from one model while retaining other models' predictions
+for the same sample. [Oasis](https://github.com/SiliconScientist/oasis) evaluates
+anomaly-aware filtering in its ensemble studies. Moira supplies the predictions
+and diagnostics needed to test such policies on further datasets.
 
-Install the project and test dependencies with:
+## Capabilities
 
-```bash
-pip install -e .[dev]
-```
+- Prepare CatBench adsorption datasets from mapped VASP calculations or ASE
+  databases, preserving source metadata and supported structural constraints.
+- Run models through Rootstock or dedicated adapters with separate model
+  environments. The ten registered adapters cover Allegro, AlphaNet, AQCat25,
+  CHGNet, GRACE, MACE, MatterSim, ORB v3, SevenNet, and UMA.
+- Retain adsorption energies, sample metadata, and CatBench-derived anomaly
+  classifications and details in each model's result files.
+- Submit Slurm arrays, split large datasets into isolated shards, collect their
+  results, and reuse relaxed clean slabs shared by multiple adsorption samples.
+- Load results into a table with model-specific energy, label, and diagnostic
+  columns aligned by reaction identifier.
 
-If you use `uv`, the equivalent is:
+**Scope:** Moira produces predictions and diagnostics for downstream analysis.
+Anomaly flags depend on the configured calculations and detection thresholds;
+an unflagged prediction is not a guarantee of accuracy. Filtering policies and
+comparisons of their benefits belong to the downstream study.
 
-```bash
-uv pip install -e ".[dev]"
-```
+## Sample tracking and CatBench changes
 
-Run the test suite with:
+Moira uses a [vendored CatBench source tree](vendor/catbench) with a targeted
+constraint patch. CatBench's `energy_cal()` previously reapplied its own
+height-based fixed-atom selection, overwriting existing ASE constraints. The
+patched function preserves the supplied constraints during slab and
+adsorbate–slab relaxation, including fixed surface layers.
 
-```bash
-PYTHONPATH=src python -m unittest
-```
+CatBench already computes per-reaction anomaly summaries as well as aggregate
+reports. Moira makes those associations persistent: after a model finishes,
+each reaction in its `*_result.json` receives source `metadata` and a
+`moira_analysis` block containing energies, a classification, and detailed
+anomaly indicators. This keeps the sample, model prediction, and diagnostics
+together without requiring a separate plotting or reporting step.
 
-## AQCat25 Setup
+Diagnostics cover convergence, structural displacement, variation across
+repeated calculations, adsorbate migration, and disagreement with reference
+energy. The reference-energy check requires a known reference and cannot serve
+as an inference-only abstention rule for unlabeled samples. The detailed flags
+remain available alongside the priority-based classification; see the
+[result parser](src/moira/mlip/result_parsing.py) for thresholds and precedence.
 
-AQCat25 needs one extra install step beyond creating the model environment.
+## Quickstart
 
-1. Create the MLIP environments:
-
-```bash
-./envs/setup_mlip_envs.sh
-```
-
-AQCat25's environment is pinned to a specific `torch==2.12.0+cu126` /
-`torch_scatter==2.1.2+pt212cu126` / `torch_sparse==0.6.18+pt212cu126` /
-`scipy==1.15.3` stack.
-If you already created `envs/aqcat25/.venv` before this change, rebuild it:
-
-```bash
-./envs/setup_mlip_envs.sh --force
-```
-
-2. Request access to the gated Hugging Face repo `SandboxAQ/aqcat25-ev2` and
-download it locally. The adapter needs both the pretrained checkpoint and the
-patched fairchem source files from that repo.
-
-Example:
-
-```bash
-hf download SandboxAQ/aqcat25-ev2 --repo-type model --local-dir ~/Downloads/aqcat25-ev2
-```
-
-3. Patch the installed `fairchem-core` inside `envs/aqcat25/.venv`:
-
-```bash
-./envs/aqcat25/patch_fairchem.sh ~/Downloads/aqcat25-ev2
-```
-
-Before patching, you can verify the torch stack resolves to the expected CUDA
-line:
+From a checkout, install the project and development dependencies:
 
 ```bash
-./envs/aqcat25/.venv/bin/python -c "import torch, torch_scatter, torch_sparse; print(torch.__version__); print(torch.version.cuda)"
+pip install -e ".[dev]"
+cp config.example.toml config.toml
 ```
 
-Expected output includes `2.12.0+cu126` and `12.6`.
+The package declares Python 3.10 or later; model environments have their own
+version requirements. The environment setup script defaults to Python 3.13,
+with Python 3.12 for ORB v3. See [environment setup](envs/README.md).
 
-4. Point `mlip.rootstock.models.aqcat25.checkpoint` at the downloaded AQCat25
-checkpoint `.pt` file in your `config.toml`.
+Edit [config.toml](config.example.toml) for your dataset, enabled models,
+checkpoints, backend, and output directory. The example contains placeholder
+paths. Rootstock uses its own model environments; the `legacy` backend uses
+Moira's per-model environments, created with `./envs/setup_mlip_envs.sh`.
+Follow the [model setup instructions](docs/workflows.md) before running.
 
-AQCat25 optionally reads `[mlip.rootstock.models.aqcat25.metadata]`. The
-supported override today is `is_spin_off`; set `is_spin_off = false` to force
-spin-polarized mode instead of the default element-based heuristic. The
-downloaded `aqcat25-ev2` directory is only needed for the patch step above, not
-at runtime.
-
-## CHGNet Setup
-
-CHGNet is the simplest legacy environment in this repo.
-
-1. Create the MLIP environments:
-
-```bash
-./envs/setup_mlip_envs.sh
-```
-
-`envs/chgnet/requirements.txt` pins both `chgnet` and a CUDA-specific torch
-wheel:
-
-```text
---index-url https://download.pytorch.org/whl/cu128
---extra-index-url https://pypi.org/simple
-chgnet==0.4.2
-torch==2.10.0+cu128
-```
-
-The original one-line `chgnet==0.4.2` env was enough for CPU-only execution,
-but it let `uv` resolve an arbitrary torch wheel transitively. On clusters, that
-can silently land on a CPU wheel or on a CUDA wheel newer than the installed
-NVIDIA driver. This repo now pins CHGNet to PyTorch's official `cu128` line so
-GPU execution is reproducible on CUDA 12.8-era drivers.
-
-2. Switch the model to the legacy backend in `config.toml` and enable `chgnet`.
-
-3. Set `mlip.rootstock.models.chgnet.checkpoint` to CHGNet's upstream model
-selector. Today that means `"0.3.0"` for the default pretrained model or
-`"r2scan"` for the R2SCAN transfer-learned model.
-
-4. If you already created `envs/chgnet/.venv` before this change, rebuild it:
-
-```bash
-./envs/setup_mlip_envs.sh --force
-```
-
-## Allegro Setup
-
-Allegro uses NequIP's ASE integration and requires a compiled NequIP model
-artifact at runtime.
-
-1. Create the MLIP environments:
-
-```bash
-./envs/setup_mlip_envs.sh
-```
-
-`envs/allegro/requirements.txt` pins the current official release line that was
-verified in a temporary `uv` Python 3.13 environment:
-
-```text
-ase==3.26.0
-torch==2.10.0
-nequip==0.18.0
-nequip-allegro==0.8.3
-```
-
-This deliberately uses the newer post-`nequip` v0.7 / `allegro` v0.4
-compatibility line instead of mixing old and new releases. The verification
-path was:
-- `uv venv --python 3.13 /tmp/allegro-test/.venv`
-- `uv pip install --python /tmp/allegro-test/.venv/bin/python torch==2.10.0 nequip==0.18.0 nequip-allegro==0.8.3 ase==3.26.0`
-- `/tmp/allegro-test/.venv/bin/python -c "import allegro; from nequip.integrations.ase import NequIPCalculator"`
-
-2. Switch the model to the legacy backend in `config.toml` and enable
-`allegro`.
-
-3. Obtain the portable packaged model. For Allegro-OAM-L 0.1, either download
-it directly on the HPC:
-
-```bash
-mkdir -p models/allegro
-curl -L \
-  https://zenodo.org/api/records/16980200/files/Allegro-OAM-L-0.1.nequip.zip/content \
-  -o models/allegro/Allegro-OAM-L-0.1.nequip.zip
-```
-
-or download it elsewhere and upload it:
-
-```bash
-scp Allegro-OAM-L-0.1.nequip.zip \
-  USER@HPC:/path/to/moira/models/allegro/
-```
-
-The `.nequip.zip` file is the portable upstream model package. It is not the
-file Moira loads at runtime.
-
-4. Compile the package on an HPC compute node with a visible GPU of the same
-type that will run inference. Do not compile on a login node. Some HPC compiler
-modules set `CXX=CC`; PyTorch AOTInductor requires a normal C++17 compiler, so
-override it explicitly:
-
-```bash
-source envs/allegro/.venv/bin/activate
-export CC=gcc
-export CXX=g++
-
-python -c "import torch; print(torch.cuda.is_available(), torch.version.cuda)"
-gcc --version
-
-nequip-compile \
-  models/allegro/Allegro-OAM-L-0.1.nequip.zip \
-  models/allegro/Allegro-OAM-L-0.1.nequip.pt2 \
-  --mode aotinductor \
-  --device cuda \
-  --target ase
-```
-
-The CUDA check must report `True`, and GCC 11 or newer is recommended. The
-resulting `.nequip.pt2` file is specialized for the compilation environment.
-Repeat this step when moving to a materially different GPU or software stack.
-
-Do not add `enable_TritonContracter` for this model: its packaged Allegro 0.7.1
-code fails while constructing that modifier. The package's matching
-cuEquivariance 0.5.1 CUDA kernels also have no Python 3.13 wheel. The unmodified
-model still runs on CUDA; those modifiers are optional kernel accelerators.
-
-5. Configure the legacy adapter to load the compiled artifact:
-
-```toml
-[mlip]
-adapter_backend = "legacy"
-device = "cuda"
-
-[mlip.models]
-enabled = ["allegro"]
-
-[mlip.rootstock.models.allegro]
-model = "allegro"
-mlip_name = "allegro-oam-l-0.1"
-checkpoint = "models/allegro/Allegro-OAM-L-0.1.nequip.pt2"
-
-[mlip.rootstock.models.allegro.metadata]
-chemical_species_to_atom_type_map = true
-```
-
-The identity mapping is correct for Allegro-OAM-L because its packaged atom
-type names are chemical symbols. For another model whose names do not match,
-provide an explicit mapping table instead, for example:
-
-```toml
-[mlip.rootstock.models.allegro.metadata.chemical_species_to_atom_type_map]
-Si = "Type0"
-O = "Type1"
-```
-
-## Entrypoints
-
-Single entrypoint:
-
-```bash
-moira --config config.toml
-moira --config config.toml --run-tag dev data/raw_data/example_adsorption.json
-```
-
-`moira` and `python -m moira` both run the config-driven MLIP workflow:
-- Enabled models come from `config.toml`
-- Optional dataset arguments override `mlip.dataset` or `mlip.datasets`
-- Optional `mlip.shard_size` or `mlip.num_shards` split large adsorption JSONs
-  into one task per `model x shard`
-- Optional `mlip.results_dir` redirects CatBench output from `./result` to a
-  path you control, for example `data/results/MamunHighT2019`; when
-  `mlip.dev_run = true`, Moira automatically uses a `_dev` suffixed sibling
-- Moira patches CatBench's adsorption loader so the resolved dataset JSON path is
-  used directly; you do not need a `raw_data/` directory in the execution cwd
-- Sharded tasks materialize shard-local dataset JSONs at runtime and write
-  shard-isolated result directories to avoid collisions between array jobs
-- `--run-tag` controls the Slurm task/result grouping
-
-Module entrypoints:
-
-```bash
-python -m moira --config config.toml
-python -m moira.mlip --config config.toml
-```
-
-Sharding helpers:
-
-```bash
-python -m moira.mlip make-tasks --config config.toml --run-tag screen --out slurm_output/mlip_tasks_screen.jsonl
-python slurm/mlip_submit.sh config.toml screen
-python -m moira.mlip collect-shards data/results/trimetallic_n_dev
-```
-
-`make-tasks` writes JSONL task records for Slurm array execution. When sharding is
-enabled, each task record contains the full dataset path plus shard bounds, and the
-runner materializes the shard locally before invoking CatBench.
-
-## Ingest
-
-Use the ingest pipeline directly with:
+If starting from VASP calculations or an ASE database, prepare the dataset:
 
 ```bash
 python -m moira.ingest --config config.toml
 ```
 
-This reads `[ingest]` from `config.toml`, loads the source dataset, builds the
-CatBench coefficient map from `[ingest.stoich]`, and writes the emitted
-adsorption JSON.
-
-- If `ingest.catbench_folder` is set, Moira keeps the full emitted CatBench-style dataset tree there.
-- If `ingest.catbench_folder` is unset, Moira stages the intermediate dataset in a temporary directory for the current run.
-- `moira.ingest` is a Python module entrypoint, not a shell command. `moira.ingest` by itself will not work in `zsh`.
-
-## Sharded Runs
-
-Use one sharding mode at a time:
-
-- `mlip.shard_size = 1000`: create as many shards as needed with at most 1000
-  reactions per shard
-- `mlip.num_shards = 32`: partition the dataset into 32 shards
-- `mlip.shard_index = 0`: optional manual selection for one shard, mainly useful
-  for local debugging
-
-Typical Slurm flow:
+Set `mlip.dataset` to the emitted adsorption JSON, or supply an existing
+CatBench adsorption JSON. For cluster execution, copy and customize the Slurm
+script for your account and resources:
 
 ```bash
-python -m moira.mlip --config config.toml --run-tag screen
-# or:
-python slurm/mlip_submit.sh config.toml screen
-python -m moira.mlip collect-shards data/results/trimetallic_n_dev
+cp slurm/mlip_one.example.sbatch slurm/mlip_one.sbatch
+# Edit slurm/mlip_one.sbatch before submitting.
+moira --config config.toml --run-tag screen
 ```
 
-The submit path snapshots `config.toml` into a unique directory under
-`slurm_output/runs/` and
-passes that frozen file to `sbatch`, so later edits to your working config do not
-change queued jobs. If you assemble `sbatch` commands manually, pass the frozen
-snapshot path rather than the mutable top-level `config.toml`.
+This command runs environment preflight checks and submits a Slurm array; it
+requires `sbatch`. Results go under `mlip.results_dir`, or `./result` by default.
+See [entrypoints](docs/workflows.md#entrypoints) and
+[sharded runs](docs/workflows.md#sharded-runs) for task generation and collection.
 
-Each shard writes to a shard-specific result directory under `mlip.results_dir`.
-This keeps CatBench restart logic local to that shard and prevents concurrent jobs
-from rewriting the same `*_result.json`.
+## Documentation
 
-When you point `collect-shards` at one shard-root directory and omit `--mlip`,
-Moira autodetects every MLIP present across the shards and writes merged
-`*_result.json` files to that directory. If shard efficiency JSONs are present,
-it also writes per-MLIP `*_efficiency.csv` and `*_efficiency.json` summaries.
+<!-- Preserve anchors from the original README. -->
+<a id="naming"></a>
+<a id="environment"></a>
+<a id="aqcat25-setup"></a>
+<a id="chgnet-setup"></a>
+<a id="allegro-setup"></a>
+<a id="entrypoints"></a>
+<a id="ingest"></a>
+<a id="sharded-runs"></a>
+<a id="slab-cache"></a>
+<a id="scope"></a>
+<a id="testing"></a>
 
-## Slab Cache
+- [Setup and workflows](docs/workflows.md): model installation, CLI usage,
+  sharding, slab caching, and test commands.
+- [Configuration example](config.example.toml) and [model environments](envs/README.md).
+- [Ingestion contracts](src/moira/ingest/README.md): geometry, metadata, and result handoff.
+- [Result loading](src/moira/mlip/artifacts.py) and
+  [persisted analysis](src/moira/mlip/result_metadata.py).
 
-Moira can reuse relaxed clean-slab calculations across adsorption reactions that
-share the same underlying slab.
+## Related projects
 
-- Cache identity: the key is derived from source metadata `parent_slab_id` plus
-  model identity (`model_name`, `mlip_name`) and relaxation settings such as
-  optimizer, force threshold, step limit, damping, rate, and chemical bond cutoff.
-- Cache location: non-sharded runs default to a local `slab_cache/` directory
-  under the CatBench result directory for that run. Sharded runs use a shared
-  location under `mlip.results_dir/<base_dataset_name>/_shared/slab_cache` so all
-  shards for the same dataset can see the same entries.
-- Invalidation: changing any field that participates in cache identity produces a
-  new cache key automatically. In practice, changing `parent_slab_id`, model
-  selection, or slab relaxation settings invalidates reuse. Manual invalidation is
-  just deleting the corresponding cache files or the shared `slab_cache/` folder.
-- Shard interaction: shard-local result JSONs remain isolated, but slab-cache
-  entries are intentionally shared for one dataset run. Concurrent writers use
-  atomic replace with unique temporary files so a cache collision does not leave a
-  partial JSON artifact.
-- Diagnostics: result payloads and `*_efficiency.json` summaries record
-  `slab_cache_hit`, `slab_cache_hit_count`, and
-  `saved_slab_time_estimate_seconds`.
+| Project | Role |
+| --- | --- |
+| [**Intergen**](https://github.com/SiliconScientist/intergen) | Generates candidate atomic structures and adsorption sites. |
+| **Moira** | Runs MLIP predictions and preserves sample-level anomaly diagnostics. |
+| [**Oasis**](https://github.com/SiliconScientist/oasis) | Evaluates and adapts predictions using limited reference data, including anomaly-aware filtering. |
 
-## Scope
-
-This repo contains:
-
-- `moira.mlip` runtime, artifact loading, and result parsing
-- `moira.adapters` integration with Rootstock/CatBench
-- `moira.ingest` dataset ingestion helpers
-- MLIP-facing config models in `moira.mlip_config`
-
-## Testing
-
-```bash
-PYTHONPATH=src python -m unittest tests.test_mlip_cli tests.test_mlip_artifacts
-```
+These projects have complementary roles but do not form an automatically
+integrated pipeline; connecting their workflows requires separate setup.
