@@ -67,81 +67,39 @@ CatBench constraint patch, stored results, diagnostic rules, and limitations.
 
 ## Quickstart
 
-The workflow below submits MLIP calculations to a Slurm cluster. You need an
-input dataset, supported model environments, model checkpoints or pretrained
-selectors, and access to the compute resources required by your models. Some
-checkpoints require separate downloads or access approval.
+You need Python 3.11 or newer, an input dataset, supported model environments,
+model checkpoints or pretrained selectors, and Slurm access with suitable compute
+resources. Moira does not bundle a self-contained local inference example; see
+[local execution requirements](docs/workflows.md#local-execution-and-verification-limits).
 
-**1. Install Moira.** Run these commands from the repository root in an active
-Python environment. Use Python 3.11 or newer for the current runtime; see the
-[Python compatibility note](docs/workflows.md#environment).
+**Install** from the repository root in an active Python environment
+([installation details](docs/workflows.md#environment)):
 
 ```bash
 python -m pip install -e ".[dev]"
 ```
 
-**2. Configure a run.** Copy the [configuration example](config.example.toml),
-then replace its placeholder paths:
+**Configure** a run from the example:
 
 ```bash
 cp config.example.toml config.toml
 ```
 
-Set `mlip.models.enabled`, `mlip.adapter_backend`, the model specifications under
-`mlip.rootstock.models`, and `mlip.results_dir`. Supply an existing CatBench
-adsorption JSON through `mlip.dataset`, or configure `[ingest]` and
-`[ingest.stoich]` to prepare one in step 4. Start with one configured model.
+Before submitting, follow [run configuration](docs/workflows.md#configuration),
+[model environments and checkpoints](docs/workflows.md#model-environments-and-checkpoints),
+[dataset preparation](docs/workflows.md#ingest), and
+[Slurm setup](docs/workflows.md#slurm-setup-and-execution) to replace placeholder
+paths and prepare your inputs and compute environment.
 
-**3. Set up model environments and checkpoints.** Installation of Moira alone
-does not configure the MLIPs. Choose the setup matching your backend:
-
-- **Rootstock:** configure `mlip.rootstock.root` and `mlip.rootstock.python`,
-  and provision the model environments used by Rootstock. Submission preflight
-  also checks model imports in the configured Python interpreter.
-- **Legacy adapters:** with `uv` installed, run `./envs/setup_mlip_envs.sh` to
-  create the repository's per-model environments. This script processes all
-  model requirements, defaulting to Python 3.13 and Python 3.12 for ORB v3.
-
-Obtain the required checkpoints or compiled model artifacts and set their paths
-or supported selectors in `config.toml`. Follow [environment setup](envs/README.md)
-and the model-specific guides for [AQCat25](docs/workflows.md#aqcat25-setup),
-[CHGNet](docs/workflows.md#chgnet-setup), and [Allegro](docs/workflows.md#allegro-setup).
-
-**4. Prepare input, if needed.** Skip this step for an existing CatBench dataset.
-For configured VASP or ASE database inputs, run:
-
-```bash
-python -m moira.ingest --config config.toml
-```
-
-This writes `data/raw_data/<ingest.dataset_name>_adsorption.json`. Set
-`mlip.dataset` to that path; ingestion does not update the configuration file.
-See [ingestion contracts](src/moira/ingest/README.md) for supported input layouts.
-
-**5. Submit and inspect results.** On a system with `sbatch`, copy the Slurm
-script and edit its account, partition, resources, and email settings:
-
-```bash
-cp slurm/mlip_one.example.sbatch slurm/mlip_one.sbatch
-```
-
-After editing, submit from the repository root:
+**Execute** after setup:
 
 ```bash
 moira --config config.toml --run-tag screen
 ```
 
-Moira checks model environments, freezes the configuration, and submits an
-array. The run directory under `slurm_output/runs/` holds the configuration
-snapshot, task list, and job logs. Completed tasks write `*_result.json` files
-with predictions and sample diagnostics under `mlip.results_dir`, or `./result`
-for unsharded runs without an output override. For optional sharding and its
-output layout, see [sharded runs](docs/workflows.md#sharded-runs).
-
-There is no self-contained local inference example bundled with this checkout:
-the test fixtures do not include model checkpoints or ready-to-run environments.
-Direct task execution is available, but still needs those prerequisites; see
-[local execution and verification limits](docs/workflows.md#local-execution-and-verification-limits).
+This checks model environments and submits a Slurm array. See
+[execution and outputs](docs/workflows.md#slurm-setup-and-execution) for job logs
+and prediction results.
 
 ## Documentation
 

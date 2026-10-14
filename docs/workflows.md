@@ -4,6 +4,10 @@
 
 Commands below run from the repository root.
 
+For a first run, work through [installation](#environment),
+[configuration](#configuration), [model setup](#model-environments-and-checkpoints),
+[dataset preparation](#ingest), and [Slurm execution](#slurm-setup-and-execution).
+
 ## Environment
 
 Use Python 3.11 or newer for the current runtime. Although `pyproject.toml`
@@ -14,7 +18,7 @@ inconsistent; model environments have their own version requirements.
 Install the project and test dependencies with:
 
 ```bash
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
 ```
 
 If you use `uv`, the equivalent is:
@@ -28,6 +32,41 @@ Run the test suite with:
 ```bash
 PYTHONPATH=src python -m unittest
 ```
+
+## Configuration
+
+Copy the [configuration example](../config.example.toml), then replace its
+placeholder paths:
+
+```bash
+cp config.example.toml config.toml
+```
+
+Set `mlip.models.enabled`, `mlip.adapter_backend`, the model specifications under
+`mlip.rootstock.models`, and `mlip.results_dir`. Start with one configured model.
+Supply an existing CatBench adsorption JSON through `mlip.dataset`, or configure
+`[ingest]` and `[ingest.stoich]` and follow [dataset preparation](#ingest).
+
+## Model environments and checkpoints
+
+Installation of Moira alone does not configure the MLIPs. Choose the setup
+matching your backend:
+
+- **Rootstock:** configure `mlip.rootstock.root` and `mlip.rootstock.python`,
+  and provision the model environments used by Rootstock. Submission preflight
+  also checks model imports in the configured Python interpreter.
+- **Legacy adapters:** with `uv` installed, run `./envs/setup_mlip_envs.sh` to
+  create the repository's per-model environments. This script processes all
+  model requirements, defaulting to Python 3.13 and Python 3.12 for ORB v3.
+
+Obtain the required checkpoints or compiled model artifacts and set their paths
+or supported pretrained selectors in `config.toml`. Some checkpoints require
+separate downloads or access approval. Your compute resources must meet the
+requirements of the selected models.
+
+See [environment setup](../envs/README.md) and the model-specific instructions
+for [AQCat25](#aqcat25-setup), [CHGNet](#chgnet-setup), and
+[Allegro](#allegro-setup).
 
 ## AQCat25 Setup
 
@@ -230,6 +269,30 @@ Si = "Type0"
 O = "Type1"
 ```
 
+## Slurm setup and execution
+
+On a system with `sbatch`, copy the Slurm script and edit its account, partition,
+resources, and email settings:
+
+```bash
+cp slurm/mlip_one.example.sbatch slurm/mlip_one.sbatch
+```
+
+After editing and completing configuration, model setup, and any required
+[ingestion](#ingest), submit from the repository root:
+
+```bash
+moira --config config.toml --run-tag screen
+```
+
+Moira checks model environments, freezes the configuration, and submits an
+array. The run directory under `slurm_output/runs/` holds the configuration
+snapshot, task list, and job logs. Completed tasks write `*_result.json` files
+with predictions and sample diagnostics under `mlip.results_dir`, or `./result`
+for unsharded runs without an output override. For optional sharding and its
+output layout, see [sharded runs](#sharded-runs). For the result contents, see
+[sample tracking and diagnostics](results-and-diagnostics.md).
+
 ## Entrypoints
 
 Single entrypoint:
@@ -300,7 +363,9 @@ example that runs after installing Moira alone.
 
 ## Ingest
 
-Use the ingest pipeline directly with:
+Skip ingestion for an existing CatBench adsorption dataset and set
+`mlip.dataset` to its path. For configured VASP calculations or ASE database
+inputs, use the ingest pipeline directly:
 
 ```bash
 python -m moira.ingest --config config.toml
@@ -308,7 +373,10 @@ python -m moira.ingest --config config.toml
 
 This reads `[ingest]` from `config.toml`, loads the source dataset, builds the
 CatBench coefficient map from `[ingest.stoich]`, and writes the emitted
-adsorption JSON.
+adsorption JSON at `data/raw_data/<ingest.dataset_name>_adsorption.json`.
+Set `mlip.dataset` to that path; ingestion does not update the configuration
+file. See [ingestion contracts](../src/moira/ingest/README.md) for supported
+input layouts.
 
 - If `ingest.catbench_folder` is set, Moira keeps the full emitted CatBench-style dataset tree there.
 - If `ingest.catbench_folder` is unset, Moira stages the intermediate dataset in a temporary directory for the current run.
