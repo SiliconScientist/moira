@@ -35,7 +35,7 @@ across models. See [alignment limits](docs/results-and-diagnostics.md#aligned-re
 
 - Prepare CatBench adsorption datasets from mapped VASP calculations or ASE
   databases, preserving source metadata and supported structural constraints.
-- Run models through Rootstock or dedicated adapters with separate model
+- Run models through dedicated adapters with separate model
   environments. The ten registered adapters cover Allegro, AlphaNet, AQCat25,
   CHGNet, GRACE, MACE, MatterSim, ORB v3, SevenNet, and UMA.
 - Retain adsorption energies, sample metadata, and CatBench-derived anomaly

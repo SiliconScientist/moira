@@ -44,7 +44,7 @@ H2 = { H = 2 }
 [mlip]
 dev_n = 2
 dev_run = false
-adapter_backend = "rootstock" # "rootstock" or "legacy"
+adapter_backend = "legacy"
 device = "cuda"               # falls back to "cpu" if CUDA is unavailable
 optimizer = "FIRE"
 save_files = false            # set false to skip CatBench traj/log/gas artifacts
@@ -62,9 +62,10 @@ save_files = false            # set false to skip CatBench traj/log/gas artifact
 [mlip.models]
 enabled = ["mace", "mattersim", "orb_v3", "sevennet", "uma"]
 
+# Historical table name required by the configuration schema.
+# Legacy adapters also read their model settings from this table.
 [mlip.rootstock]
-root = "/path/to/rootstock"
-# python = "/path/to/rootstock/.venv/bin/python"
+root = "." # Required by the schema; unused by legacy adapters.
 
 [mlip.rootstock.models.mace]
 model = "mace"
@@ -95,17 +96,15 @@ modal = "mpa"
 
 [mlip.rootstock.models.uma]
 model = "uma"
-# For `adapter_backend = "rootstock"`, this can be a Rootstock alias like
-# "uma-s-1p1". For `adapter_backend = "legacy"`, this must be a real checkpoint
-# file path instead.
-checkpoint = "uma-s-1p1"
+# Replace this with the path to your downloaded checkpoint file.
+checkpoint = "models/uma/uma-s-1p1.pt"
 mlip_name = "uma-s-1p1"
 
 [mlip.rootstock.models.uma.metadata]
 task_name = "omat"
 
 # Add "allegro", "aqcat25", "alphanet", "chgnet", or "grace" to
-# mlip.models.enabled only when adapter_backend = "legacy".
+# mlip.models.enabled after completing their model-specific setup.
 [mlip.rootstock.models.allegro]
 model = "allegro"
 mlip_name = "allegro-oam-l-0.1"
@@ -137,7 +136,7 @@ is_spin_off = true
 [mlip.rootstock.models.alphanet]
 model = "alphanet"
 mlip_name = "alphanet-oma-v1"
-# Legacy AlphaNet uses a real torch checkpoint file, not a Rootstock alias.
+# AlphaNet requires a local torch checkpoint file.
 checkpoint = "models/alphanet/model.ckpt"
 
 [mlip.rootstock.models.alphanet.metadata]

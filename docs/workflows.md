@@ -42,22 +42,20 @@ placeholder paths:
 cp config.example.toml config.toml
 ```
 
-Set `mlip.models.enabled`, `mlip.adapter_backend`, the model specifications under
-`mlip.rootstock.models`, and `mlip.results_dir`. Start with one configured model.
+Set `mlip.adapter_backend = "legacy"`, `mlip.models.enabled`, the model
+specifications under `mlip.rootstock.models`, and `mlip.results_dir`. Start with
+one configured model. The `mlip.rootstock` table name is retained by the current
+configuration schema; the legacy adapters also read their model settings there.
 Supply an existing CatBench adsorption JSON through `mlip.dataset`, or configure
 `[ingest]` and `[ingest.stoich]` and follow [dataset preparation](#ingest).
 
 ## Model environments and checkpoints
 
-Installation of Moira alone does not configure the MLIPs. Choose the setup
-matching your backend:
-
-- **Rootstock:** configure `mlip.rootstock.root` and `mlip.rootstock.python`,
-  and provision the model environments used by Rootstock. Submission preflight
-  also checks model imports in the configured Python interpreter.
-- **Legacy adapters:** with `uv` installed, run `./envs/setup_mlip_envs.sh` to
-  create the repository's per-model environments. This script processes all
-  model requirements, defaulting to Python 3.13 and Python 3.12 for ORB v3.
+Installation of Moira alone does not configure the MLIPs. With `uv` installed,
+run `./envs/setup_mlip_envs.sh` to create the per-model environments used by the
+legacy adapters. This script processes all model requirements, defaulting to
+Python 3.13 and Python 3.12 for ORB v3. Submission preflight checks model imports
+in each model's environment.
 
 Obtain the required checkpoints or compiled model artifacts and set their paths
 or supported pretrained selectors in `config.toml`. Some checkpoints require
@@ -445,7 +443,7 @@ share the same underlying slab.
 This repo contains:
 
 - `moira.mlip` runtime, artifact loading, and result parsing
-- `moira.adapters` integration with Rootstock/CatBench
+- `moira.adapters` model integration with CatBench
 - `moira.ingest` dataset ingestion helpers
 - MLIP-facing config models in `moira.mlip_config`
 

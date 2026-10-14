@@ -22,11 +22,10 @@ By default, all environments use `PYTHON_VERSION` except `orb_v3`, which uses
 PYTHON_VERSION=3.13 ORB_V3_PYTHON_VERSION=3.12 ./envs/setup_mlip_envs.sh
 ```
 
-Per-model environments should contain only model-specific dependencies.
-Rootstock is installed in the main project environment and dispatches to
-its own prebuilt MLIP environments. CatBench is provided from the shared
-vendored source at `vendor/catbench` via `mlip.catbench_source` and
-injected into the Rootstock adapter subprocess with `PYTHONPATH`.
+With `mlip.adapter_backend = "legacy"`, Moira runs each model using
+`envs/<model>/.venv/bin/python`. CatBench is provided from the shared vendored
+source at `vendor/catbench` via `mlip.catbench_source` and added to the task
+process's Python import path.
 
 `alphanet` is the one exception that needs extra care for accelerator support:
 its requirements file follows the simpler torch path instead of the optional
