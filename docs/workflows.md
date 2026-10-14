@@ -6,10 +6,15 @@ Commands below run from the repository root.
 
 ## Environment
 
+Use Python 3.11 or newer for the current runtime. Although `pyproject.toml`
+declares Python >=3.10, result enrichment imports `datetime.UTC`, introduced in
+Python 3.11. The package declaration and runtime requirement are currently
+inconsistent; model environments have their own version requirements.
+
 Install the project and test dependencies with:
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 ```
 
 If you use `uv`, the equivalent is:
@@ -266,6 +271,32 @@ python -m moira.mlip collect-shards data/results/trimetallic_n_dev
 `make-tasks` writes JSONL task records for Slurm array execution. When sharding is
 enabled, each task record contains the full dataset path plus shard bounds, and the
 runner materializes the shard locally before invoking CatBench.
+
+## Local execution and verification limits
+
+The CLI supports running a single task directly with `run-one`, bypassing Slurm.
+It still requires a configured model interpreter, its dependencies, checkpoint
+or pretrained model selector, and a compatible adsorption dataset. The
+repository's probe fixtures are test inputs, not a bundled inference tutorial;
+no model checkpoints or ready-to-run model environments are included.
+
+The supported command sequence, once those prerequisites are satisfied, is:
+
+```bash
+python -m moira.mlip make-tasks --config config.toml --out slurm_output/local_tasks.jsonl
+python -m moira.mlip run-one --config config.toml --line "$(head -n 1 slurm_output/local_tasks.jsonl)"
+```
+
+`make-tasks` creates a JSONL task list from the configured dataset and enabled
+models. `run-one` executes only its first record in this example, selecting the
+configured interpreter and adapter. It does not run submission preflight.
+The interface and task generation were checked against the implementation;
+end-to-end local inference was not verified for this documentation update
+because the required model runtimes and checkpoints were unavailable.
+
+The README therefore starts with the configured Slurm workflow. That workflow
+also requires external model setup and suitable hardware; it is not a bundled
+example that runs after installing Moira alone.
 
 ## Ingest
 

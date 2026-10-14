@@ -16,6 +16,21 @@ for the same sample. [Oasis](https://github.com/SiliconScientist/oasis) evaluate
 anomaly-aware filtering in its ensemble studies. Moira supplies the predictions
 and diagnostics needed to test such policies on further datasets.
 
+```mermaid
+flowchart TD
+    V["VASP calculations"] --> P["Prepare adsorption dataset; preserve source metadata"]
+    A["ASE databases"] --> P
+    P --> D["CatBench adsorption dataset"]
+    C["Existing CatBench dataset"] -->|Skip preparation| D
+    D --> M["Run MLIPs through supported model adapters"]
+    M --> R["Collect predictions and anomaly diagnostics per sample and model"]
+    R -.->|Optional table loading| T["Align results by sample for downstream analysis"]
+```
+
+Existing datasets retain the metadata they supply. Result files preserve
+sample–model associations; optional table loading aligns compatible results
+across models. See [alignment limits](docs/results-and-diagnostics.md#aligned-results).
+
 ## Capabilities
 
 - Prepare CatBench adsorption datasets from mapped VASP calculations or ASE
@@ -35,67 +50,98 @@ Anomaly flags depend on the configured calculations and detection thresholds;
 an unflagged prediction is not a guarantee of accuracy. Filtering policies and
 comparisons of their benefits belong to the downstream study.
 
-## Sample tracking and CatBench changes
+<a id="sample-tracking-and-catbench-changes"></a>
 
-Moira uses a [vendored CatBench source tree](vendor/catbench) with a targeted
-constraint patch. CatBench's `energy_cal()` previously reapplied its own
-height-based fixed-atom selection, overwriting existing ASE constraints. The
-patched function preserves the supplied constraints during slab and
-adsorbate–slab relaxation, including fixed surface layers.
+## Sample traceability
 
-CatBench already computes per-reaction anomaly summaries as well as aggregate
-reports. Moira makes those associations persistent: after a model finishes,
-each reaction in its `*_result.json` receives source `metadata` and a
-`moira_analysis` block containing energies, a classification, and detailed
-anomaly indicators. This keeps the sample, model prediction, and diagnostics
-together without requiring a separate plotting or reporting step.
+Moira keeps each sample's source metadata, model predictions, and anomaly
+diagnostics together. These associations let researchers trace a result back to
+its input and examine why a prediction was flagged, supporting reproducible
+comparisons and explicit abstention decisions for individual model predictions.
 
-Diagnostics cover convergence, structural displacement, variation across
-repeated calculations, adsorbate migration, and disagreement with reference
-energy. The reference-energy check requires a known reference and cannot serve
-as an inference-only abstention rule for unlabeled samples. The detailed flags
-remain available alongside the priority-based classification; see the
-[result parser](src/moira/mlip/result_parsing.py) for thresholds and precedence.
+Anomaly detection identifies warning signs; it does not establish prediction
+accuracy. In particular, disagreement with reference energy requires a known
+reference and cannot support abstention on unlabeled samples. See
+[sample tracking and diagnostics](docs/results-and-diagnostics.md) for the
+CatBench constraint patch, stored results, diagnostic rules, and limitations.
 
 ## Quickstart
 
-From a checkout, install the project and development dependencies:
+The workflow below submits MLIP calculations to a Slurm cluster. You need an
+input dataset, supported model environments, model checkpoints or pretrained
+selectors, and access to the compute resources required by your models. Some
+checkpoints require separate downloads or access approval.
+
+**1. Install Moira.** Run these commands from the repository root in an active
+Python environment. Use Python 3.11 or newer for the current runtime; see the
+[Python compatibility note](docs/workflows.md#environment).
 
 ```bash
-pip install -e ".[dev]"
+python -m pip install -e ".[dev]"
+```
+
+**2. Configure a run.** Copy the [configuration example](config.example.toml),
+then replace its placeholder paths:
+
+```bash
 cp config.example.toml config.toml
 ```
 
-The package declares Python 3.10 or later; model environments have their own
-version requirements. The environment setup script defaults to Python 3.13,
-with Python 3.12 for ORB v3. See [environment setup](envs/README.md).
+Set `mlip.models.enabled`, `mlip.adapter_backend`, the model specifications under
+`mlip.rootstock.models`, and `mlip.results_dir`. Supply an existing CatBench
+adsorption JSON through `mlip.dataset`, or configure `[ingest]` and
+`[ingest.stoich]` to prepare one in step 4. Start with one configured model.
 
-Edit [config.toml](config.example.toml) for your dataset, enabled models,
-checkpoints, backend, and output directory. The example contains placeholder
-paths. Rootstock uses its own model environments; the `legacy` backend uses
-Moira's per-model environments, created with `./envs/setup_mlip_envs.sh`.
-Follow the [model setup instructions](docs/workflows.md) before running.
+**3. Set up model environments and checkpoints.** Installation of Moira alone
+does not configure the MLIPs. Choose the setup matching your backend:
 
-If starting from VASP calculations or an ASE database, prepare the dataset:
+- **Rootstock:** configure `mlip.rootstock.root` and `mlip.rootstock.python`,
+  and provision the model environments used by Rootstock. Submission preflight
+  also checks model imports in the configured Python interpreter.
+- **Legacy adapters:** with `uv` installed, run `./envs/setup_mlip_envs.sh` to
+  create the repository's per-model environments. This script processes all
+  model requirements, defaulting to Python 3.13 and Python 3.12 for ORB v3.
+
+Obtain the required checkpoints or compiled model artifacts and set their paths
+or supported selectors in `config.toml`. Follow [environment setup](envs/README.md)
+and the model-specific guides for [AQCat25](docs/workflows.md#aqcat25-setup),
+[CHGNet](docs/workflows.md#chgnet-setup), and [Allegro](docs/workflows.md#allegro-setup).
+
+**4. Prepare input, if needed.** Skip this step for an existing CatBench dataset.
+For configured VASP or ASE database inputs, run:
 
 ```bash
 python -m moira.ingest --config config.toml
 ```
 
-Set `mlip.dataset` to the emitted adsorption JSON, or supply an existing
-CatBench adsorption JSON. For cluster execution, copy and customize the Slurm
-script for your account and resources:
+This writes `data/raw_data/<ingest.dataset_name>_adsorption.json`. Set
+`mlip.dataset` to that path; ingestion does not update the configuration file.
+See [ingestion contracts](src/moira/ingest/README.md) for supported input layouts.
+
+**5. Submit and inspect results.** On a system with `sbatch`, copy the Slurm
+script and edit its account, partition, resources, and email settings:
 
 ```bash
 cp slurm/mlip_one.example.sbatch slurm/mlip_one.sbatch
-# Edit slurm/mlip_one.sbatch before submitting.
+```
+
+After editing, submit from the repository root:
+
+```bash
 moira --config config.toml --run-tag screen
 ```
 
-This command runs environment preflight checks and submits a Slurm array; it
-requires `sbatch`. Results go under `mlip.results_dir`, or `./result` by default.
-See [entrypoints](docs/workflows.md#entrypoints) and
-[sharded runs](docs/workflows.md#sharded-runs) for task generation and collection.
+Moira checks model environments, freezes the configuration, and submits an
+array. The run directory under `slurm_output/runs/` holds the configuration
+snapshot, task list, and job logs. Completed tasks write `*_result.json` files
+with predictions and sample diagnostics under `mlip.results_dir`, or `./result`
+for unsharded runs without an output override. For optional sharding and its
+output layout, see [sharded runs](docs/workflows.md#sharded-runs).
+
+There is no self-contained local inference example bundled with this checkout:
+the test fixtures do not include model checkpoints or ready-to-run environments.
+Direct task execution is available, but still needs those prerequisites; see
+[local execution and verification limits](docs/workflows.md#local-execution-and-verification-limits).
 
 ## Documentation
 
@@ -114,6 +160,8 @@ See [entrypoints](docs/workflows.md#entrypoints) and
 
 - [Setup and workflows](docs/workflows.md): model installation, CLI usage,
   sharding, slab caching, and test commands.
+- [Sample tracking and diagnostics](docs/results-and-diagnostics.md): CatBench
+  integration, anomaly thresholds, and result alignment limits.
 - [Configuration example](config.example.toml) and [model environments](envs/README.md).
 - [Ingestion contracts](src/moira/ingest/README.md): geometry, metadata, and result handoff.
 - [Result loading](src/moira/mlip/artifacts.py) and
