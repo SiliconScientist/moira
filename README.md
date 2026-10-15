@@ -1,5 +1,9 @@
 # Moira
 
+This repository contains the codebase used for the study presented in
+*Data-Efficient Adaptation of Machine-Learned Interatomic Potentials for Catalysis
+without Fine-Tuning*, our manuscript currently under review.
+
 Moira runs machine-learned interatomic potentials (MLIPs) on adsorption datasets
 and keeps each sample's predictions linked to its source metadata and anomaly
 flags. MLIPs predict atomic energies and forces; comparing their predictions
