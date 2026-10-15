@@ -1,9 +1,5 @@
 # Moira
 
-This repository contains the codebase used for the study presented in
-*Data-Efficient Adaptation of Machine-Learned Interatomic Potentials for Catalysis
-without Fine-Tuning*, our manuscript currently under review.
-
 Moira runs machine-learned interatomic potentials (MLIPs) on adsorption datasets
 and keeps each sample's predictions linked to its source metadata and anomaly
 flags. MLIPs predict atomic energies and forces; comparing their predictions
@@ -19,6 +15,10 @@ an anomalous prediction from one model while retaining other models' predictions
 for the same sample. [Oasis](https://github.com/SiliconScientist/oasis) evaluates
 anomaly-aware filtering in its ensemble studies. Moira supplies the predictions
 and diagnostics needed to test such policies on further datasets.
+
+Moira contains the model execution and data-processing infrastructure supporting
+*Data-Efficient Adaptation of Machine-Learned Interatomic Potentials for Catalysis
+without Fine-Tuning* (Hill and Montemore, manuscript under review).
 
 ```mermaid
 flowchart TD
